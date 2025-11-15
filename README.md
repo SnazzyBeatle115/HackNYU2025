@@ -52,10 +52,22 @@ HackNYU2025/
    pip install -r requirements.txt
    ```
 
+4. **Configure environment variables** (optional)
+   ```bash
+   cp .env.example .env
+   # Edit .env and set your SECRET_KEY and other configuration
+   ```
+
 ## Usage
 
 1. **Run the Flask application**
    ```bash
+   python app.py
+   ```
+   
+   By default, the app runs in debug mode. To disable debug mode:
+   ```bash
+   export FLASK_DEBUG=False
    python app.py
    ```
 
@@ -127,9 +139,17 @@ def new_route():
 
 ## Development
 
-- **Debug mode**: The app runs in debug mode by default for development
-- **Secret key**: Change the `SECRET_KEY` in `app.py` for production
-- **Port**: Default port is 5000, can be changed in `app.py`
+- **Debug mode**: The app runs in debug mode by default for development. Set `FLASK_DEBUG=False` in production.
+- **Secret key**: Set a secure `SECRET_KEY` environment variable in production.
+- **Port**: Default port is 5000, can be changed in `app.py`.
+
+## Security Notes
+
+⚠️ **Important for Production:**
+1. Set `FLASK_DEBUG=False` to disable debug mode
+2. Use a strong, random `SECRET_KEY` (not the default)
+3. Use a production WSGI server like gunicorn instead of the built-in Flask server
+4. Never commit `.env` files with secrets to version control
 
 ## Technologies Used
 
