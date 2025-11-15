@@ -89,6 +89,52 @@ def screen_input():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@api.route('/text', methods=['POST'])
+def process_text():
+    """
+    Handle text requests sent to /api/text
+    Expects JSON payload with a `text` field.
+    """
+    payload = request.get_json(silent=True) or {}
+    text = payload.get('text')
+
+    if not text:
+        return jsonify({
+            'success': False,
+            'error': "Missing required field 'text'."
+        }), 400
+
+    # Replace the response below with real logic when ready.
+    return jsonify({
+        'success': True,
+        'message': 'Text processed successfully.',
+        'length': len(text),
+        'metadata': payload.get('metadata', {})
+    })
+
+
+@api.route('/voice', methods=['POST'])
+def process_voice():
+    """
+    Handle voice uploads sent to /api/voice
+    Expects multipart/form-data with an `audio` file.
+    """
+    audio_file = request.files.get('audio')
+
+    if audio_file is None or audio_file.filename == '':
+        return jsonify({
+            'success': False,
+            'error': "Missing audio file in 'audio' form field."
+        }), 400
+
+    # Placeholder response – integrate with voice model or storage later.
+    return jsonify({
+        'success': True,
+        'message': 'Voice data received.',
+        'filename': audio_file.filename
+    })
+
+
 @app.route('/about')
 def about():
     """About page route"""
