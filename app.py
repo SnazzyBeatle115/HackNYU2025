@@ -4,7 +4,7 @@ Main entry point for the web application
 """
 import os
 from flask import Flask, render_template, request, jsonify
-from ml.model import predict
+#from ml.model import predict
 
 app = Flask(__name__)
 
