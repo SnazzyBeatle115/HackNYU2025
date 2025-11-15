@@ -3,10 +3,13 @@ Flask Web Application
 Main entry point for the web application
 """
 import os
-from flask import Flask, render_template, request, jsonify
-from ml.model import predict
+from flask import Flask, render_template, request, jsonify, Blueprint
+# from ml.model import predict
 
 app = Flask(__name__)
+
+# API blueprint: group API routes under `/api` prefix
+api = Blueprint('api', __name__, url_prefix='/api')
 
 # Configure the app
 # In production, set these via environment variables
@@ -19,7 +22,9 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/predict', methods=['POST'])
+
+
+@api.route('/predict', methods=['POST'])
 def make_prediction():
     """
     API endpoint for making predictions using the ML model
@@ -50,6 +55,10 @@ def make_prediction():
 def about():
     """About page route"""
     return render_template('about.html')
+
+
+# Register API blueprint so `/api` routes are available
+app.register_blueprint(api)
 
 
 if __name__ == '__main__':
