@@ -4,7 +4,14 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+requests = "*"
+python-dotenv = "*"
+opencv-python = "*"
+mss = "*"
+pillow = "*"
+numpy = "*"
 flask = "*"
+flask-cors = "*"
 
 [dev-packages]
 
