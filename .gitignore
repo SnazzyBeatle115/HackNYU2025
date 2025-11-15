@@ -206,5 +206,9 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+
+
+# temp
+tmp_uploads/
 # Audio output files (for debugging)
 ml/audio_output/
