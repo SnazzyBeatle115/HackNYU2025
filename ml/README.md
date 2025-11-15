@@ -80,7 +80,7 @@ python api_server.py --port 8080
 
 #### API Endpoints
 
-**POST `/chat`** - Send a message and get a response
+**POST `/chat`** - Send a message and get a response with audio
 ```bash
 curl -X POST http://localhost:5000/chat \
   -H "Content-Type: application/json" \
@@ -91,9 +91,15 @@ Response:
 ```json
 {
   "response": "Timer set for 5 minutes!",
-  "status": "success"
+  "status": "success",
+  "audio": {
+    "data": "base64_encoded_audio_string",
+    "format": "mp3"
+  }
 }
 ```
+
+Note: The `audio` field is optional and only included if ElevenLabs is configured.
 
 **POST `/reset`** - Reset the conversation history
 ```bash
