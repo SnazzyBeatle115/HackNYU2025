@@ -2,13 +2,15 @@
 Flask Web Application
 Main entry point for the web application
 """
+import os
 from flask import Flask, render_template, request, jsonify
 from ml.model import predict
 
 app = Flask(__name__)
 
 # Configure the app
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # Change this in production
+# In production, set these via environment variables
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 
 @app.route('/')
@@ -51,4 +53,7 @@ def about():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Debug mode should only be enabled in development
+    # In production, use a proper WSGI server like gunicorn
+    debug_mode = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)
