@@ -571,6 +571,182 @@ DETAILS: [additional context about the activity, application/website name, etc.]
         }), 500
 
 
+@app.route('/detectcamera', methods=['POST'])
+def detect_camera():
+    """
+    Analyze a camera image to detect person presence and study activity
+    
+    Expected JSON payload:
+    {
+        "image": "base64_encoded_image_string" or "data:image/jpeg;base64,..."
+    }
+    
+    Returns:
+    {
+        "person_present": true/false,
+        "activity_detected": "description of what user is doing",
+        "is_studying": true/false,
+        "analysis": "full AI analysis",
+        "status": "success"
+    }
+    """
+    global assistant
+    
+    # Initialize assistant if not already done
+    if assistant is None:
+        try:
+            init_assistant()
+        except Exception as e:
+            return jsonify({
+                "error": f"Failed to initialize assistant: {str(e)}",
+                "status": "error"
+            }), 500
+    
+    # Get image from request
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "error": "No JSON data provided",
+                "status": "error"
+            }), 400
+        
+        image_base64 = data.get('image', '').strip()
+        
+        if not image_base64:
+            return jsonify({
+                "error": "Image field is required and cannot be empty",
+                "status": "error"
+            }), 400
+        
+        # Analyze camera image using vision model
+        vision_model = os.getenv("OPENROUTER_VISION_MODEL", "openai/gpt-4-turbo")
+        camera_prompt = """Analyze this camera image to determine:
+1. Is there a person visible in the camera frame?
+2. What is the person doing?
+3. Is the person actively studying or distracted?
+
+CRITICAL RULES:
+- If NO person is visible in the camera = NOT studying (person is absent)
+- If person is using a phone, tablet, or mobile device = NOT studying (distraction)
+- If person is looking away from the screen/desk = NOT studying
+- If person appears to be sleeping or not engaged = NOT studying
+- If person is eating, drinking, or doing non-study activities = NOT studying
+
+Person is PRESENT and studying if:
+- Person is visible and facing the screen/desk
+- Person appears engaged with computer/work materials
+- Person is actively reading, writing, or working
+- Person is focused on their study materials
+
+Person is PRESENT but NOT studying if:
+- Person is using a phone, tablet, or mobile device
+- Person is looking away from their work
+- Person is eating, drinking, or doing other activities
+- Person appears distracted or not focused
+- Person is talking on phone or video calling (not study-related)
+
+Format your response as:
+PERSON_PRESENT: [yes or no]
+ACTIVITY: [description of what person is doing - e.g., "using phone", "looking at screen", "absent from camera"]
+IS_STUDYING: [yes or no]
+DETAILS: [additional context - what device they're using, their posture, engagement level, etc.]"""
+        
+        print(f"[INFO] Analyzing camera image using vision model: {vision_model}")
+        analysis_result = assistant.llm_client.analyze_image(
+            image_base64=image_base64,
+            prompt=camera_prompt,
+            model=vision_model,
+            temperature=0.3,  # Lower temperature for more consistent analysis
+            max_tokens=1000
+        )
+        
+        analysis_text = analysis_result.get("content", "")
+        
+        # Parse the analysis to extract structured information
+        person_present = False
+        activity_detected = ""
+        is_studying = False
+        details = ""
+        
+        # Try to parse the structured response
+        lines = analysis_text.split("\n")
+        current_section = None
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith("PERSON_PRESENT:"):
+                person_present_str = line.replace("PERSON_PRESENT:", "").strip().lower()
+                person_present = "yes" in person_present_str or "true" in person_present_str
+                current_section = "presence"
+            elif line.startswith("ACTIVITY:"):
+                activity_detected = line.replace("ACTIVITY:", "").strip()
+                current_section = "activity"
+            elif line.startswith("IS_STUDYING:"):
+                is_studying_str = line.replace("IS_STUDYING:", "").strip().lower()
+                is_studying = "yes" in is_studying_str or "true" in is_studying_str
+                current_section = "studying"
+            elif line.startswith("DETAILS:"):
+                details = line.replace("DETAILS:", "").strip()
+                current_section = "details"
+            elif line and current_section:
+                # Continue appending to current section
+                if current_section == "activity":
+                    activity_detected += " " + line
+                elif current_section == "details":
+                    details += " " + line
+        
+        # If parsing didn't work well, use fallback detection
+        if not activity_detected:
+            activity_detected = "Unable to parse activity"
+            # Try to detect keywords from analysis
+            analysis_lower = analysis_text.lower()
+            
+            # Check for person presence keywords
+            if any(keyword in analysis_lower for keyword in ["no person", "absent", "not visible", "empty", "no one"]):
+                person_present = False
+                is_studying = False
+                activity_detected = "No person detected in camera"
+            elif any(keyword in analysis_lower for keyword in ["person", "visible", "present", "seen"]):
+                person_present = True
+                # Check for distractions
+                distraction_keywords = ["phone", "mobile", "tablet", "device", "looking away", "distracted", "eating", "drinking", "sleeping"]
+                if any(keyword in analysis_lower for keyword in distraction_keywords):
+                    is_studying = False
+                    activity_detected = "Person present but distracted"
+                else:
+                    is_studying = True
+                    activity_detected = "Person present and studying"
+        
+        # Enforce critical rules: if no person present, definitely not studying
+        if not person_present:
+            is_studying = False
+            if not activity_detected or activity_detected == "Unable to parse activity":
+                activity_detected = "No person detected in camera"
+        
+        # Return structured response
+        result = {
+            "person_present": person_present,
+            "activity_detected": activity_detected,
+            "is_studying": is_studying,
+            "analysis": analysis_text,
+            "vision_model_used": analysis_result.get("model_used", vision_model),
+            "status": "success"
+        }
+        
+        if details:
+            result["details"] = details
+        
+        return jsonify(result), 200
+    
+    except Exception as e:
+        return jsonify({
+            "error": f"Error processing camera detection: {str(e)}",
+            "status": "error"
+        }), 500
+
+
 @app.route('/status', methods=['GET'])
 def status():
     """
