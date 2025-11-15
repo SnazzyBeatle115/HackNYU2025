@@ -2,6 +2,8 @@
  * Main JavaScript file for Flask ML Web App
  */
 
+console.log("WEHFIWEHIFHWEF"); // TEST
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Flask ML Web App loaded successfully');
