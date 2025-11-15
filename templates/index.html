@@ -13,12 +13,20 @@
                 <p> 00:15 </p>
             </div>
 
-            <img src="{{ url_for('static', filename='images/sample.jpg') }}" alt="Conscience AI Logo">
+            <div class="character-img">
+                <p class="dialogue"> Hey, you gotta lock in! </p>
+
+                <img src="{{ url_for('static', filename='images/sample.jpg') }}" alt="Conscience AI Logo">
+            </div>
         </div>
 
         <div class="input">
-            <input type="text" placeholder="Enter your prompt here...">
-            <button type="submit">Submit</button>
+            <input class="input-text" type="text" placeholder="Enter your next task ->">
+            <button class="submit-btn" type="submit">
+                <img src="{{ url_for('static', filename='images/arrow.png') }}" alt="Send">
+            </button>
+
+            <!-- <input type="file" accept="audio/*" capture> -->
         </div>
     </div>
 
@@ -31,6 +39,5 @@
             <p>Welcome to the AI Chat! Ask me anything.</p>
         </div>
     </div>
-
 </div>
 {% endblock %}

@@ -6,7 +6,20 @@
     font-family: sans-serif;
 }
 
+button {
+    border: none;
+}
+
+input {
+    border: none;
+}
+
+input:focus {
+    border: none;
+}
+
 .container {
+    background: radial-gradient(circle at center, #ffffff 0%, #f0f0f0 50%, #d0d0d0 100%);
     height: 100vh;
     width: 100%;
 
@@ -14,17 +27,25 @@
 }
 
 .main {
+    padding: 0% 10%;
+    padding-top: 3rem;
+    
     width: 70%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 2rem;
+}
+
+.main > h1 {
+    padding: 0.5rem;
+    width: 100%;
+    font-size: 2.5rem;
 }
 
 .chat {
     width: 30%;
-    background-color: aliceblue;
+    background-color: whitesmoke;
     padding: 0.7rem;
 }
 
@@ -56,9 +77,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+
+    width: 100%;
 }
 
-.center > img {
+.character-img {
+    position: relative;
     width: 200px;
     height: auto;
 
@@ -66,14 +90,63 @@
     border: 1px solid gray;
 }
 
-.input {
+.character-img > img {
+    width: 100%;
+    height: 100%;
+    border-radius: 0.5rem;
+}
+
+.dialogue {
+    position: absolute;
+    top: -20%;
+    left: 60%;
+    width: 200px;
+
+    font-size: 1.1rem;
+    font-weight: bold;
+    line-height: 1.6rem;
+
+    background-color: white;
     padding: 1.5rem;
-    background-color: lightgray;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(59, 56, 56);
+    z-index: 1;
+}
+
+.input {
+    background-color: white;
     border-radius: 0.5rem;
     font-size: 1.5rem;
     border: 1px solid gray;
+    height: 3rem;
 
     display: flex;
     align-items: center;
     justify-content: space-between;
+    width: 100%;
+
+    overflow: hidden;
+}
+
+.input-text {
+    height: 100%;
+    font-size: 1.1rem;
+    flex-grow: 1;
+    margin-left: 0.4rem;
+}
+
+.submit-btn {
+    width: 3rem;
+    height: 100%;
+    cursor: pointer;
+    background-color: white;
+    border-left: 1px solid gray;
+}
+.submit-btn:hover {
+    background-color: #e3e3e3;
+}
+
+.submit-btn > img {
+    width: 100%;
+    height: 100%;
 }
