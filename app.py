@@ -34,34 +34,40 @@ def index():
 
 
 
-
+def get_input_payload(input_type, json_key):
+    """
+    Helper to extract input payload from request, handling file uploads and JSON data.
+    Returns (payload, error_response) where error_response is None if successful.
+    """
+    # Prefer file upload via multipart/form-data field named 'file'
+    if request.files and 'file' in request.files:
+        f = request.files['file']
+        content = f.read()
+        payload = {
+            'input_type': input_type,
+            'filename': f.filename,
+            'file_bytes': content
+        }
+        return payload, None
+    else:
+        data = request.get_json()
+        if not data or (json_key not in data and 'data' not in data):
+            return None, jsonify({'error': f'No {input_type} provided'}), 400
+        # Accept either the specific key or 'data' key in JSON
+        payload = {'input_type': input_type, 'data': data.get(json_key) or data.get('data')}
+        return payload, None
 
 @api.route('/video', methods=['POST'])
 def video_input():
     """Accept video input (file upload or JSON/base64) and forward to ML model."""
     try:
-        # Prefer file upload via multipart/form-data field named 'file'
-        if request.files and 'file' in request.files:
-            f = request.files['file']
-            content = f.read()
-            payload = {
-                'input_type': 'video',
-                'filename': f.filename,
-                'file_bytes': content
-            }
-        else:
-            data = request.get_json()
-            if not data or ('video' not in data and 'data' not in data):
-                return jsonify({'error': 'No video provided'}), 400
-            # Accept either `video` or `data` key in JSON
-            payload = {'input_type': 'video', 'data': data.get('video') or data.get('data')}
-
+        payload, error_response = get_input_payload('video', 'video')
+        if error_response:
+            return error_response
         result = predict(payload)
         return jsonify({'success': True, 'prediction': result})
-
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
 
 @api.route('/screen', methods=['POST'])
 def screen_input():
