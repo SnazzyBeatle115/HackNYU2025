@@ -1,0 +1,28 @@
+# OpenRouter API Configuration
+# Copy this to .env file in the ml/ directory
+# Get your API key from https://openrouter.ai/keys
+
+OPENROUTER_API_KEY=your_api_key_here
+
+# Optional: Specify a different primary model
+# OPENROUTER_MODEL=openai/gpt-3.5-turbo
+# OPENROUTER_MODEL=anthropic/claude-3-haiku
+# OPENROUTER_MODEL=google/gemini-pro
+
+# Optional: Specify backup models (comma-separated) - will be used if primary model fails
+# OPENROUTER_BACKUP_MODELS=anthropic/claude-3-haiku,google/gemini-pro,openai/gpt-3.5-turbo
+
+# Optional: Vision model for activity detection (default: openai/gpt-4-turbo)
+# OPENROUTER_VISION_MODEL=openai/gpt-4-turbo
+
+# Optional: OCR model for text extraction (default: openai/gpt-4-turbo)
+# This model is specialized for extracting text from images
+# Good alternatives: google/gemini-1.5-pro, google/gemini-1.5-flash
+# OPENROUTER_OCR_MODEL=openai/gpt-4-turbo
+
+# Optional: ElevenLabs Text-to-Speech Configuration
+# Get your API key from https://elevenlabs.io/
+# ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+# ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM  # Default: Rachel voice (cute and friendly)
+# You can find voice IDs at https://elevenlabs.io/voice-library
+
