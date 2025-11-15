@@ -43,50 +43,6 @@ try:
 except Exception:
     requests = None
 
-def forward_to_ml(payload, endpoint, timeout=10):
-    """Forward payload to the ML API server endpoint and return parsed JSON response.
-
-    - If payload contains `file_bytes`, attempt a multipart/form-data upload (requests preferred).
-    - Otherwise send JSON (base64 string under `screen` key).
-    """
-    url = ML_SERVER_URL.rstrip('/') + endpoint
-    try:
-        # Build base64 image string from either raw bytes or provided data
-        if payload.get('file_bytes') is not None:
-            b64 = base64.b64encode(payload['file_bytes']).decode()
-        else:
-            b64 = payload.get('data')
-            if isinstance(b64, str) and b64.startswith('data:'):
-                b64 = b64.split(',', 1)[1]
-
-        if not b64:
-            return {'error': 'no_image_data'}
-
-        data = {'image': b64}
-
-        # Debug: print concise payload info before forwarding to ML server
-        try:
-            preview = b64[:120] + '...' if isinstance(b64, str) and len(b64) > 120 else b64
-            print(f"Forwarding to ML {url} with payload image length={len(b64)} preview={preview}")
-        except Exception:
-            print(f"Forwarding to ML {url} (payload present, preview suppressed)")
-
-        if requests:
-            resp = requests.post(url, json=data, timeout=timeout)
-            try:
-                body = resp.json()
-            except Exception:
-                body = {'text': resp.text}
-            if resp.status_code >= 400:
-                return {'error': f'{resp.status_code} {resp.reason}', 'body': body}
-            return body
-        else:
-            data_bytes = json.dumps(data).encode()
-            req = urllib.request.Request(url, data=data_bytes, headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                return json.loads(r.read().decode())
-    except Exception as e:
-        return {'error': str(e)}
 
 def save_temp_file(payload):
     """Save bytes from payload to TMP_UPLOAD_DIR and return the saved path or None.
@@ -176,8 +132,6 @@ def forward_to_ml(payload, endpoint='/detectscreen', timeout=60):
                 return json.loads(r.read().decode())
     except Exception as e:
         return {'error': str(e)}
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @api.route('/screen', methods=['POST'])
 def screen_input():
@@ -213,8 +167,7 @@ def screen_input():
                     print("ML server error body:", ml_resp.get('body'))
             except Exception:
                 pass
-
-            
+            resp = ml_resp.copy()
         else:
             # ML returned a successful JSON response — return it directly so
             # the client gets fields like text_extracted, activity_detected, etc.
@@ -275,6 +228,12 @@ def process_voice():
         'message': 'Voice data received.',
         'filename': audio_file.filename
     })
+
+
+@app.route('/')
+def index():
+    """Home page route"""
+    return render_template('index.html')
 
 
 @app.route('/about')
