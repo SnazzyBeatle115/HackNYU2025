@@ -1,95 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %}Home - Flask ML Web App{% endblock %}
+{% block title %}HackNYU{% endblock %}
 
 {% block content %}
 <div class="container">
-    <section class="hero">
-        <h2>Welcome to Flask ML Web App</h2>
-        <p>A web application framework with integrated machine learning capabilities.</p>
-    </section>
     
-    <section class="prediction-form">
-        <h3>Try Our ML Model</h3>
-        <form id="prediction-form">
-            <div class="form-group">
-                <label for="input-value">Input Value:</label>
-                <input type="number" id="input-value" name="value" required>
-            </div>
-            <button type="submit">Get Prediction</button>
-        </form>
-        
-        <div id="result" class="result hidden">
-            <h4>Prediction Result:</h4>
-            <p id="prediction-output"></p>
-        </div>
-        
-        <div id="error" class="error hidden">
-            <p id="error-message"></p>
-        </div>
-    </section>
-    
-    <section class="features">
-        <h3>Features</h3>
-        <div class="feature-grid">
-            <div class="feature">
-                <h4>Flask Framework</h4>
-                <p>Built with Flask, a lightweight and powerful Python web framework.</p>
-            </div>
-            <div class="feature">
-                <h4>ML Integration</h4>
-                <p>Separate ML folder with modular machine learning model implementation.</p>
-            </div>
-            <div class="feature">
-                <h4>RESTful API</h4>
-                <p>Clean API endpoints for making predictions and accessing data.</p>
-            </div>
-            <div class="feature">
-                <h4>Responsive Design</h4>
-                <p>Modern, responsive UI that works on all devices.</p>
-            </div>
-        </div>
-    </section>
-</div>
-{% endblock %}
+    <div class="main"></div>
 
-{% block scripts %}
-<script>
-document.getElementById('prediction-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const value = document.getElementById('input-value').value;
-    const resultDiv = document.getElementById('result');
-    const errorDiv = document.getElementById('error');
-    const predictionOutput = document.getElementById('prediction-output');
-    const errorMessage = document.getElementById('error-message');
-    
-    // Hide previous results
-    resultDiv.classList.add('hidden');
-    errorDiv.classList.add('hidden');
-    
-    try {
-        const response = await fetch('/predict', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ value: parseFloat(value) })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            predictionOutput.textContent = data.prediction;
-            resultDiv.classList.remove('hidden');
-        } else {
-            errorMessage.textContent = data.error || 'An error occurred';
-            errorDiv.classList.remove('hidden');
-        }
-    } catch (error) {
-        errorMessage.textContent = 'Failed to connect to the server';
-        errorDiv.classList.remove('hidden');
-    }
-});
-</script>
+
+    <div class="chat">
+        <h2> AI Chat </h2>
+        <div class="log">
+            <p>Bot: Welcome to the AI Chat! Ask me anything.</p>
+            <p>Welcome to the AI Chat! Ask me anything.</p>
+            <p>Welcome to the AI Chat! Ask me anything.</p>
+        </div>
+    </div>
+
+</div>
 {% endblock %}
