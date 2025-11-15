@@ -9,6 +9,7 @@ A virtual AI assistant that tracks your screen and camera, powered by OpenRouter
 - Task handling (timers, reminders, etc.)
 - Text-to-speech using ElevenLabs
 - Screen analysis and activity detection (OCR and study detection)
+- Camera-based person presence and distraction detection
 - Natural language interaction
 - Backup model support for reliability
 
@@ -141,6 +142,30 @@ Note: This endpoint uses a two-model approach:
 2. **Vision Model** (default: `openai/gpt-4-turbo`) - Used for activity detection and context understanding
 
 You can configure different models for each task. For example, use a faster/cheaper model for OCR and a more powerful model for activity detection.
+
+**POST `/detectcamera`** - Analyze camera image for person presence and study activity
+```bash
+curl -X POST http://localhost:5000/detectcamera \
+  -H "Content-Type: application/json" \
+  -d '{"image": "base64_encoded_image_string"}'
+```
+
+Response:
+```json
+{
+  "person_present": true,
+  "activity_detected": "Person is using phone",
+  "is_studying": false,
+  "analysis": "Full AI analysis...",
+  "vision_model_used": "openai/gpt-4-turbo",
+  "status": "success"
+}
+```
+
+Note: This endpoint detects:
+- **Person presence**: Whether a person is visible in the camera
+- **Distractions**: Phone usage, looking away, eating, etc.
+- **Study status**: If no person is present or person is distracted = NOT studying
 
 **GET `/welcome`** - Get welcome message with audio
 ```bash
@@ -281,6 +306,118 @@ Content-Type: application/json
 - `is_studying` is `false` for messaging apps (Discord, Slack), social media, browsing, etc., even if educational content is visible
 - Only active engagement (coding, writing, deep reading) counts as studying
 
+**Response Schema:**
+```typescript
+{
+  text_extracted: string;        // All text extracted from the image via OCR
+  activity_detected: string;    // Description of what the user is doing
+  is_studying: boolean;         // true if actively studying, false if distracted
+  analysis: string;             // Full AI analysis text with structured format
+  ocr_model_used: string;      // Model identifier used for text extraction
+  vision_model_used: string;   // Model identifier used for activity detection
+  details?: string;            // Optional: Additional context about the activity
+  status: "success" | "error";  // Response status
+}
+```
+
+**Example Response:**
+```json
+{
+  "text_extracted": "Official - HackNYU Fall 25\n#announcements\n\nAshley [HackNYU Leadership] 1:17 PM\nThere's still pizza left!!! @everyone...",
+  "activity_detected": "The user is viewing announcements on a Discord server for an event called HackNYU Fall 25.",
+  "is_studying": false,
+  "analysis": "ACTIVITY: The user is viewing announcements on a Discord server...\nIS_STUDYING: No\nDETAILS: The user is not actively engaged...",
+  "ocr_model_used": "openai/gpt-4-turbo",
+  "vision_model_used": "openai/gpt-4-turbo",
+  "details": "The user is not actively engaged in studying or academic work. They are browsing a channel named #announcements on Discord...",
+  "status": "success"
+}
+```
+
+---
+
+##### POST `/detectcamera`
+
+Analyze a camera image to detect person presence and study activity.
+
+**Request:**
+```http
+POST /detectcamera
+Content-Type: application/json
+
+{
+  "image": "base64_encoded_image_string"
+}
+```
+
+**Request Body Fields:**
+- `image` (string, required): Base64-encoded camera image. Can be:
+  - Raw base64 string: `"iVBORw0KGgoAAAANSUhEUgAA..."`
+  - Data URL format: `"data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAA..."`
+
+**Success Response (200 OK):**
+```json
+{
+  "person_present": true,
+  "activity_detected": "Person is using phone",
+  "is_studying": false,
+  "analysis": "PERSON_PRESENT: Yes\nACTIVITY: Person is using phone\nIS_STUDYING: No\nDETAILS: Person is holding and looking at a mobile phone...",
+  "vision_model_used": "openai/gpt-4-turbo",
+  "details": "Person is holding and looking at a mobile phone, which is a distraction from studying.",
+  "status": "success"
+}
+```
+
+**Response Fields:**
+- `person_present` (boolean): `true` if a person is visible in the camera, `false` if absent
+- `activity_detected` (string): Description of what the person is doing (e.g., "using phone", "looking at screen", "absent from camera")
+- `is_studying` (boolean): `true` if person is actively studying, `false` if distracted or absent
+- `analysis` (string): Full AI analysis text
+- `vision_model_used` (string): Model used for camera image analysis
+- `details` (string, optional): Additional context about the activity
+- `status` (string): Response status
+
+**Error Responses:**
+- `400 Bad Request`: Missing or empty image field
+- `500 Internal Server Error`: Image processing or model error
+
+**Notes:**
+- **Critical Rules:**
+  - If `person_present` is `false` → `is_studying` is always `false` (person is absent)
+  - If person is using a phone/tablet → `is_studying` is `false` (distraction)
+  - If person is looking away, eating, sleeping, or distracted → `is_studying` is `false`
+- Person is only considered studying if:
+  - Person is present AND facing the screen/desk
+  - Person appears engaged with computer/work materials
+  - Person is actively reading, writing, or working
+- Frontend should send camera images periodically (e.g., every 5-10 seconds) for continuous monitoring
+
+**Response Schema:**
+```typescript
+{
+  person_present: boolean;      // true if person visible in camera, false if absent
+  activity_detected: string;    // Description of activity (e.g., "using phone", "looking at screen", "absent from camera")
+  is_studying: boolean;         // true if actively studying, false if distracted or absent
+  analysis: string;             // Full AI analysis text with structured format
+  vision_model_used: string;   // Model identifier used for camera image analysis
+  details?: string;            // Optional: Additional context about the activity
+  status: "success" | "error";  // Response status
+}
+```
+
+**Example Response:**
+```json
+{
+  "person_present": true,
+  "activity_detected": "using phone",
+  "is_studying": false,
+  "analysis": "PERSON_PRESENT: yes\nACTIVITY: using phone\nIS_STUDYING: no\nDETAILS: The person is holding and looking at a mobile phone...",
+  "vision_model_used": "openai/gpt-4-turbo",
+  "details": "The person is holding and looking at a mobile phone, which indicates they are distracted from studying according to the given rules.",
+  "status": "success"
+}
+```
+
 ---
 
 ##### POST `/reset`
@@ -400,6 +537,9 @@ ml/
 ├── ai_assistant.py         # Main AI assistant class
 ├── tools.py                # Tool definitions (timer, etc.)
 ├── api_server.py           # Unified entry point (API server + CLI)
+├── elevenlabs_client.py   # ElevenLabs TTS client
+├── image_to_base64.py      # Image to base64 conversion utility
+├── test_endpoints.py       # Testing utility for API endpoints
 ├── requirements.txt        # Python dependencies
 ├── config_example.txt      # Example environment variables
 └── README.md              # This file
@@ -448,17 +588,75 @@ models = client.get_available_models()
 print(models)
 ```
 
+## Utilities
+
+### `image_to_base64.py`
+Simple utility for converting images to base64 format. Useful for preparing images before sending to API endpoints.
+
+### `test_endpoints.py`
+Testing utility for validating API endpoints. Supports testing both `/detectscreen` and `/detectcamera` endpoints with formatted output.
+
 ## Next Steps
 
-To add screen and camera tracking:
+The screen and camera tracking functionality is now implemented:
 
-1. **Screen Tracking**: Use `mss` library to capture screenshots
-2. **Camera Tracking**: Use `opencv-python` to access webcam
-3. **Integration**: Pass screen/camera data to the LLM for analysis
+1. **Screen Tracking**: Frontend sends screenshots to `/detectscreen` endpoint
+2. **Camera Tracking**: Frontend sends camera images to `/detectcamera` endpoint
+3. **Integration**: Both endpoints analyze images and return study status
+
+For frontend integration:
+- Capture screenshots periodically (e.g., every 5-10 seconds) and send to `/detectscreen`
+- Capture camera frames periodically and send to `/detectcamera`
+- Combine results from both endpoints for comprehensive study monitoring
+
+## Testing
+
+### Testing API Endpoints
+
+Use the `test_endpoints.py` utility to test the `/detectscreen` and `/detectcamera` endpoints:
+
+**Test camera detection:**
+```bash
+python test_endpoints.py test_camera.jpg --camera
+```
+
+**Test screen detection:**
+```bash
+python test_endpoints.py test.png --screen
+```
+
+**Custom endpoint URL:**
+```bash
+python test_endpoints.py image.jpg --camera --url http://localhost:8080/detectcamera
+```
+
+The test utility will:
+- Convert the image to base64
+- Send it to the specified endpoint
+- Display formatted results including person presence, activity detection, and study status
+
+### Image to Base64 Conversion
+
+Use `image_to_base64.py` to convert images to base64 format:
+
+```bash
+# Convert to raw base64
+python image_to_base64.py image.png
+
+# Convert to data URL format
+python image_to_base64.py image.jpg --data-url
+
+# Save to file
+python image_to_base64.py image.png --output base64.txt
+
+# Preview first 100 characters
+python image_to_base64.py image.png --preview
+```
 
 ## Troubleshooting
 
 - **API Key Error**: Make sure your `.env` file exists and contains a valid `OPENROUTER_API_KEY`
 - **Import Errors**: Ensure you've installed all dependencies with `pip install -r requirements.txt`
 - **Model Not Found**: Check that the model name is correct. Use `client.get_available_models()` to see available models
+- **Endpoint Testing Fails**: Make sure the API server is running (`python api_server.py`) before testing endpoints
 
