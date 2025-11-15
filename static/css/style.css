@@ -50,25 +50,25 @@ input:focus {
 }
 
 .chat > h2 {
+    margin-top: 0.4rem;
     margin-bottom: 1rem;
+    font-size: 1.9rem;
 }
 
 .log {
-    background-color: white;
-    border: 1px solid gray;
-    border-radius: 0.5rem;
     padding: 0.5rem;
 }
 .log > p {
-    margin-bottom: 0.5rem;
-    font-size: 1.1rem;
+    color: rgb(70, 70, 70);
+    margin-bottom: 0.7rem;
+    font-size: 1.2rem;
 }
 
 .timer {
-    padding: 1.5rem;
-    background-color: lightgray;
+    padding: 1.3rem;
+    background-color: white;
     border-radius: 0.5rem;
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: bold;
     border: 1px solid gray;
 }
@@ -78,6 +78,8 @@ input:focus {
     align-items: center;
     justify-content: space-between;
 
+    padding-right: 5%;
+
     width: 100%;
 }
 
@@ -85,31 +87,29 @@ input:focus {
     position: relative;
     width: 200px;
     height: auto;
-
-    border-radius: 0.5rem;
-    border: 1px solid gray;
 }
 
 .character-img > img {
     width: 100%;
     height: 100%;
-    border-radius: 0.5rem;
+    border-radius: 100%;
 }
 
 .dialogue {
     position: absolute;
-    top: -20%;
-    left: 60%;
+    top: -35%;
+    left: 40%;
     width: 200px;
 
     font-size: 1.1rem;
+    color: black;
     font-weight: bold;
     line-height: 1.6rem;
 
-    background-color: white;
+    background-color: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(10px);
     padding: 1.5rem;
     border-radius: 0.5rem;
-    border: 1px solid rgb(59, 56, 56);
     z-index: 1;
 }
 
@@ -149,4 +149,19 @@ input:focus {
 .submit-btn > img {
     width: 100%;
     height: 100%;
+}
+
+@media screen and (max-width: 600px) {
+
+    .dialogue {
+        width: 140px;
+        font-size: 1rem;
+    }
+    
+}
+
+@media screen and (min-height: 800px) {
+    .main {
+        gap: 3.5rem;
+    }
 }
