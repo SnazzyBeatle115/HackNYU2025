@@ -18,7 +18,60 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    // Attempt to start screen capture on page load.
+    (async () => {
+        try {
+            await startScreenCapture();
+            showNotification('Screen capture started', 'info');
+        } catch (err) {
+            console.warn('Screen capture start blocked or failed:', err);
+            showNotification('Screen capture could not be started automatically. Please click to start.', 'error');
+        }
+    })();
+
 });
+
+async function startScreenCapture() {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true
+    });
+
+    const videoEl = document.createElement("video");
+    videoEl.srcObject = stream;
+    await videoEl.play();
+
+    // Periodic screenshot
+    setInterval(() => captureScreenshot(videoEl), 2000);
+}
+
+function captureScreenshot(videoEl) {
+    const canvas = document.createElement("canvas");
+    canvas.width = videoEl.videoWidth;
+    canvas.height = videoEl.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(videoEl, 0, 0);
+
+    const base64 = canvas.toDataURL("image/jpeg", 0.7); // compressed
+
+    sendScreenshot(base64);
+}
+
+
+async function sendScreenshot(base64Image) {
+    try {
+        const responseJson = await apiCall('/api/screen', 'POST', {
+            screen: base64Image
+        });
+        console.log('Prediction response:', responseJson);
+        // showNotification(`Prediction: ${responseJson.prediction}`, 'info');
+    } catch (error) {
+        // showNotification('Failed to get prediction from server.', 'error');
+        console.error('Error sending screenshot:', error);
+    }
+}
+
 
 /**
  * Helper function to make API calls

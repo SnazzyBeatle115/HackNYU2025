@@ -3,6 +3,9 @@ Flask Web Application
 Main entry point for the web application
 """
 import os
+import base64
+import time
+import secrets
 from flask import Flask, render_template, request, jsonify, Blueprint
 
 # Try to import the real ML predict function; fall back to a safe stub for dev
@@ -21,6 +24,50 @@ app = Flask(__name__)
 
 # API blueprint: group API routes under `/api` prefix
 api = Blueprint('api', __name__, url_prefix='/api')
+
+# Directory to temporarily save uploads for debugging
+TMP_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'tmp_uploads')
+os.makedirs(TMP_UPLOAD_DIR, exist_ok=True)
+
+def save_temp_file(payload):
+    """Save bytes from payload to TMP_UPLOAD_DIR and return the saved path or None.
+
+    payload can contain 'file_bytes' (raw bytes) or 'data' (base64 string or data URL).
+    """
+    try:
+        file_bytes = payload.get('file_bytes')
+        filename = payload.get('filename')
+        input_type = payload.get('input_type', 'data')
+
+        # If no raw bytes, try to decode base64 from 'data'
+        if file_bytes is None and 'data' in payload:
+            b64 = payload.get('data')
+            if isinstance(b64, str) and b64.startswith('data:'):
+                # strip data URL prefix
+                b64 = b64.split(',', 1)[1]
+            file_bytes = base64.b64decode(b64)
+
+        if not file_bytes:
+            return None
+
+        # Choose extension
+        ext = None
+        if filename:
+            _, ext = os.path.splitext(filename)
+        if not ext:
+            ext = '.jpg' if input_type == 'screen' else '.bin'
+
+        ts = int(time.time() * 1000)
+        token = secrets.token_hex(4)
+        out_name = f"{input_type}_{ts}_{token}{ext}"
+        out_path = os.path.join(TMP_UPLOAD_DIR, out_name)
+
+        with open(out_path, 'wb') as fh:
+            fh.write(file_bytes)
+
+        return out_path
+    except Exception:
+        return None
 
 # Configure the app
 # In production, set these via environment variables
@@ -64,6 +111,9 @@ def video_input():
         payload, error_response = get_input_payload('video', 'video')
         if error_response:
             return error_response
+        # Save temporary copy for debugging
+        saved = save_temp_file(payload)
+
         result = predict(payload)
         return jsonify({'success': True, 'prediction': result})
     except Exception as e:
@@ -73,24 +123,30 @@ def video_input():
 def screen_input():
     """Accept screen input (screenshot file or JSON/base64) and forward to ML model."""
     try:
-        # Support file upload via multipart/form-data field named 'file'
+        # multipart/form-data upload with field 'file'
         if request.files and 'file' in request.files:
             f = request.files['file']
             content = f.read()
-            payload = {
-                'input_type': 'screen',
-                'filename': f.filename,
-                'file_bytes': content
-            }
+            payload = {'input_type': 'screen', 'filename': f.filename, 'file_bytes': content}
         else:
-            data = request.get_json()
-            if not data or ('screen' not in data and 'data' not in data):
-                return jsonify({'error': 'No screen provided'}), 400
-            payload = {'input_type': 'screen', 'data': data.get('screen') or data.get('data')}
+            data = request.get_json(silent=True) or {}
+            b64 = data.get('screen') or data.get('data')
+            if not b64:
+                return jsonify({'success': False, 'error': 'No screen data provided'}), 400
+            # strip data URL prefix if present: "data:image/jpeg;base64,...."
+            if isinstance(b64, str) and b64.startswith('data:'):
+                b64 = b64.split(',', 1)[1]
+            try:
+                file_bytes = base64.b64decode(b64)
+            except Exception:
+                return jsonify({'success': False, 'error': 'Invalid base64 data'}), 400
+            payload = {'input_type': 'screen', 'file_bytes': file_bytes}
+
+        # Save temporary copy for debugging
+        # saved = save_temp_file(payload)
 
         result = predict(payload)
-        return jsonify({'success': True, 'prediction': result})
-
+        return jsonify({'success': True, 'result': result})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
