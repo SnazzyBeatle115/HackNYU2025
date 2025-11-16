@@ -342,7 +342,14 @@ def process_voice():
 @app.route('/')
 def index():
     """Home page route"""
-    return render_template('index.html')
+    # Get capture intervals from environment variables (in milliseconds)
+    # Default to 2000ms (2 seconds) if not set
+    screen_capture_interval = int(os.environ.get('SCREEN_CAPTURE_INTERVAL', 2000))
+    camera_capture_interval = int(os.environ.get('CAMERA_CAPTURE_INTERVAL', 2000))
+    
+    return render_template('index.html', 
+                         screen_capture_interval=screen_capture_interval,
+                         camera_capture_interval=camera_capture_interval)
 
 
 @app.route('/about')

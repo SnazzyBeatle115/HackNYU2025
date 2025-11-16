@@ -2,9 +2,11 @@
  * Main JavaScript file for Flask ML Web App
  */
 
-
-const TIME_INTERVAL_SCREEN_CAPTURE = 200000;
-const TIME_INTERVAL_CAMERA_CAPTURE = 200000;
+// Capture intervals are set from environment variables via template
+// These will be defined in the template script block before this file loads
+// Fallback values if not defined
+const TIME_INTERVAL_SCREEN_CAPTURE = window.TIME_INTERVAL_SCREEN_CAPTURE || 2000;
+const TIME_INTERVAL_CAMERA_CAPTURE = window.TIME_INTERVAL_CAMERA_CAPTURE || 2000;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
