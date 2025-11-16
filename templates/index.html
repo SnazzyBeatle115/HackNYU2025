@@ -40,3 +40,12 @@
     </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+    // Set capture intervals from backend environment variables
+    // Store in window object so main.js can access them
+    window.TIME_INTERVAL_SCREEN_CAPTURE = {{ screen_capture_interval }};
+    window.TIME_INTERVAL_CAMERA_CAPTURE = {{ camera_capture_interval }};
+</script>
+{% endblock %}
