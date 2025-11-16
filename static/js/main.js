@@ -644,8 +644,8 @@ function blobToBase64(blob) {
  */
 async function sendAudioChunk(base64Audio, mimeType) {
     try {
-        // Send base64 audio as JSON to /audioin endpoint
-        const response = await fetch('/audioin', {
+        // Send base64 audio as JSON to /voice endpoint
+        const response = await fetch('/api/voice', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -664,8 +664,39 @@ async function sendAudioChunk(base64Audio, mimeType) {
         const result = await response.json();
         console.log('Audio chunk sent successfully:', result);
         
+        // Get chat log element
+        const chatLog = document.querySelector('.log');
+        if (!chatLog) {
+            console.warn('Chat log element not found');
+            return;
+        }
+        
+        // Add transcribed user message to chat log
+        const transcription = result?.transcription || 'Voice input';
+        if (transcription) {
+            addMessageToChat(chatLog, `You: ${transcription}`, 'user');
+        }
+        
+        // Add bot response to chat log
+        const botMessage = result?.response || result?.message || JSON.stringify(result);
+        addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
+        
+        // Show typing animation in dialogue element and play audio
+        const dialogueElement = document.querySelector('.dialogue');
+        if (dialogueElement) {
+            typeText(dialogueElement, botMessage, result?.audio);
+        }
+        
+        // Scroll to bottom of chat log
+        chatLog.scrollTop = chatLog.scrollHeight;
+        
     } catch (error) {
         console.error('Error sending audio chunk:', error);
+        // Show error in chat if possible
+        const chatLog = document.querySelector('.log');
+        if (chatLog) {
+            addMessageToChat(chatLog, `Bot: Error - ${error.message}`, 'error');
+        }
     }
 }
 

@@ -123,6 +123,57 @@ class ElevenLabsClient:
         """Change the default voice being used"""
         self.voice_id = voice_id
     
+    def speech_to_text(self, audio_base64: str, audio_format: str = "audio/webm") -> str:
+        """
+        Convert speech to text using ElevenLabs conversion API
+        
+        Args:
+            audio_base64: Base64 encoded audio data
+            audio_format: MIME type of the audio (e.g., "audio/webm", "audio/mpeg")
+        
+        Returns:
+            Transcribed text string
+        """
+        if not audio_base64:
+            raise ValueError("Audio data cannot be empty")
+        
+        # Decode base64 to bytes
+        audio_bytes = base64.b64decode(audio_base64)
+        
+        # ElevenLabs conversion API endpoint
+        url = f"{self.base_url}/conversion"
+        
+        # Prepare multipart form data
+        files = {
+            'file': ('audio.webm', audio_bytes, audio_format)
+        }
+        
+        headers = {
+            "xi-api-key": self.api_key
+        }
+        
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                files=files,
+                timeout=60  # Transcription can take longer
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            # The response should contain the transcribed text
+            # Adjust based on actual ElevenLabs API response format
+            transcribed_text = result.get("text", "") or result.get("transcription", "")
+            
+            if not transcribed_text:
+                raise Exception("No transcription text in response")
+            
+            return transcribed_text.strip()
+        
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"ElevenLabs transcription API error: {str(e)}")
+    
     def save_audio(self, audio_data: bytes, text: str, output_dir: str = "audio_output") -> str:
         """
         Save audio data to a file for debugging/verification

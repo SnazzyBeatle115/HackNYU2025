@@ -317,60 +317,120 @@ def process_text():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def forward_audio_to_ml(audio_base64, audio_format='audio/webm', endpoint='/voice', timeout=60):
+    """Forward base64 audio to the ML server endpoint as JSON {"audio": "<base64>"} 
+    and return the parsed JSON response.
+    """
+    url = ML_SERVER_URL.rstrip('/') + endpoint
+    
+    if not audio_base64:
+        return {'error': 'no_audio_data'}
+    
+    data = {
+        'audio': audio_base64,
+        'format': audio_format
+    }
+    
+    print(f"Forwarding audio to ML {url} format={audio_format} audio_length={len(audio_base64)}")
+    
+    try:
+        if requests:
+            resp = requests.post(url, json=data, timeout=timeout)
+            try:
+                return resp.json()
+            except Exception:
+                return {'error': 'invalid_json_response', 'text': resp.text, 'status': resp.status_code}
+        else:
+            body = json.dumps(data).encode()
+            req = urllib.request.Request(url, data=body, headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode())
+    except Exception as e:
+        return {'error': str(e)}
+
+
 @api.route('/voice', methods=['POST'])
 def process_voice():
     """
     Handle voice uploads sent to /api/voice
-    Expects multipart/form-data with an `audio` file.
-    """
-    audio_file = request.files.get('audio')
-
-    if audio_file is None or audio_file.filename == '':
-        return jsonify({
-            'success': False,
-            'error': "Missing audio file in 'audio' form field."
-        }), 400
-
-    # Placeholder response – integrate with voice model or storage later.
-    return jsonify({
-        'success': True,
-        'message': 'Voice data received.',
-        'filename': audio_file.filename
-    })
-
-
-@app.route('/audioin', methods=['POST'])
-def audio_input():
-    """
-    Handle audio input sent as base64 encoded data.
-    Expects JSON payload with 'audio' (base64 string) and optional 'format' field.
+    Accepts either:
+    1. JSON payload with 'audio' (base64 string) and optional 'format' field
+    2. multipart/form-data with an 'audio' file (legacy support)
+    Forwards to ML server's /voice endpoint.
     """
     try:
-        data = request.get_json(silent=True) or {}
-        audio_base64 = data.get('audio')
-        audio_format = data.get('format', 'audio/webm')
+        # Always try JSON first (most common case)
+        data = request.get_json(silent=True)
         
-        if not audio_base64:
+        if data and isinstance(data, dict) and 'audio' in data:
+            # This is a JSON request with audio field
+            audio_base64 = data.get('audio')
+            audio_format = data.get('format', 'audio/webm')
+            
+            if not audio_base64:
+                return jsonify({
+                    'success': False,
+                    'error': "Missing 'audio' field in request body."
+                }), 400
+            
+            print(f"Received audio input (JSON): format={audio_format}, base64_length={len(audio_base64)}")
+            
+            # Forward to ML server's /voice endpoint
+            ml_resp = forward_audio_to_ml(audio_base64, audio_format, endpoint='/voice')
+            
+            # If ML server returned an error, return the error
+            if isinstance(ml_resp, dict) and ml_resp.get('error'):
+                try:
+                    print("ML server error:", ml_resp.get('error'))
+                except Exception:
+                    pass
+                return jsonify(ml_resp), 500
+            
+            # ML returned a successful JSON response — return it directly
+            if isinstance(ml_resp, dict):
+                resp = ml_resp.copy()
+            else:
+                resp = {'ml_response': ml_resp}
+            
+            return jsonify(resp)
+        
+        # Fallback: Check for multipart/form-data
+        elif request.files:
+            audio_file = request.files.get('audio')
+            
+            if audio_file is None or audio_file.filename == '':
+                return jsonify({
+                    'success': False,
+                    'error': "Missing audio file in 'audio' form field."
+                }), 400
+            
+            # Read file and convert to base64
+            audio_bytes = audio_file.read()
+            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+            audio_format = audio_file.content_type or 'audio/webm'
+            
+            print(f"Received audio input (multipart): format={audio_format}, base64_length={len(audio_base64)}")
+            
+            # Forward to ML server
+            ml_resp = forward_audio_to_ml(audio_base64, audio_format, endpoint='/voice')
+            
+            if isinstance(ml_resp, dict) and ml_resp.get('error'):
+                return jsonify(ml_resp), 500
+            
+            if isinstance(ml_resp, dict):
+                resp = ml_resp.copy()
+            else:
+                resp = {'ml_response': ml_resp}
+            
+            return jsonify(resp)
+        
+        else:
+            # Neither JSON nor multipart detected
             return jsonify({
                 'success': False,
-                'error': "Missing 'audio' field in request body."
+                'error': "Invalid request format. Expected JSON with 'audio' field or multipart/form-data with 'audio' file."
             }), 400
-        
-        # Decode base64 audio if needed (it should already be base64)
-        # The frontend sends it as base64 string, so we can use it directly
-        # or decode it to bytes if needed for processing
-        
-        print(f"Received audio input: format={audio_format}, base64_length={len(audio_base64)}")
-        
-        # TODO: Process the audio (e.g., send to ML server, transcribe, etc.)
-        # For now, return success response
-        return jsonify({
-            'success': True,
-            'message': 'Audio data received successfully.',
-            'format': audio_format,
-            'size': len(audio_base64)
-        })
-        
+            
     except Exception as e:
         return jsonify({
             'success': False,
