@@ -247,28 +247,74 @@ def camera_input():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def forward_text_to_ml(message, endpoint='/chat', timeout=60):
+    """Forward a text message to the ML server endpoint as JSON {"message": "<text>"}
+    and return the parsed JSON response.
+    """
+    url = ML_SERVER_URL.rstrip('/') + endpoint
+    
+    if not message or not message.strip():
+        return {'error': 'empty_message'}
+    
+    data = {'message': message.strip()}
+    
+    print(f"Forwarding text to ML {url} message_length={len(message)}")
+    
+    try:
+        if requests:
+            resp = requests.post(url, json=data, timeout=timeout)
+            try:
+                return resp.json()
+            except Exception:
+                return {'error': 'invalid_json_response', 'text': resp.text, 'status': resp.status_code}
+        else:
+            body = json.dumps(data).encode()
+            req = urllib.request.Request(url, data=body, headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode())
+    except Exception as e:
+        return {'error': str(e)}
+
+
 @api.route('/text', methods=['POST'])
 def process_text():
     """
     Handle text requests sent to /api/text
     Expects JSON payload with a `text` field.
+    Forwards to ML server's /chat endpoint.
     """
-    payload = request.get_json(silent=True) or {}
-    text = payload.get('text')
+    try:
+        data = request.get_json(silent=True) or {}
+        text = data.get('text') or data.get('message')
+        
+        if not text:
+            return jsonify({
+                'success': False,
+                'error': "Missing required field 'text' or 'message'."
+            }), 400
 
-    if not text:
-        return jsonify({
-            'success': False,
-            'error': "Missing required field 'text'."
-        }), 400
-
-    # Replace the response below with real logic when ready.
-    return jsonify({
-        'success': True,
-        'message': 'Text processed successfully.',
-        'length': len(text),
-        'metadata': payload.get('metadata', {})
-    })
+        print(f"Processing text: {text}")
+        
+        # Forward to ML server's /chat endpoint
+        ml_resp = forward_text_to_ml(text, endpoint='/chat')
+        
+        # If ML server returned an error, return the error
+        if isinstance(ml_resp, dict) and ml_resp.get('error'):
+            try:
+                print("ML server error:", ml_resp.get('error'))
+            except Exception:
+                pass
+            return jsonify(ml_resp), 500
+        
+        # ML returned a successful JSON response — return it directly
+        if isinstance(ml_resp, dict):
+            resp = ml_resp.copy()
+        else:
+            resp = {'ml_response': ml_resp}
+        
+        return jsonify(resp)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @api.route('/voice', methods=['POST'])
