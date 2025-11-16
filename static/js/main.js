@@ -3,8 +3,8 @@
  */
 
 
-const TIME_INTERVAL_SCREEN_CAPTURE = 20000;
-const TIME_INTERVAL_CAMERA_CAPTURE = 20000;
+const TIME_INTERVAL_SCREEN_CAPTURE = 200000;
+const TIME_INTERVAL_CAMERA_CAPTURE = 200000;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
@@ -45,6 +45,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })();
 
+    // Set up chat input handler
+    setupChatInput();
+
+    // Initialize dialogue element visibility
+    // Note: The dialogue will be shown when typing starts and hidden when cleared
     // handle record button press
     document.querySelector(".character-img").addEventListener("click", () => {
         E
@@ -203,6 +208,244 @@ async function apiCall(endpoint, method = 'GET', data = null) {
             throw new Error('Network error: Could not connect to server. Make sure the Flask server is running.');
         }
         throw error;
+    }
+}
+
+/**
+ * Set up chat input functionality
+ */
+function setupChatInput() {
+    const inputField = document.querySelector('.input-text');
+    const submitButton = document.querySelector('.submit-btn');
+    const chatLog = document.querySelector('.log');
+    
+    if (!inputField || !submitButton) {
+        console.warn('Chat input elements not found');
+        return;
+    }
+    
+    // Function to send message
+    const sendMessage = async () => {
+        const text = inputField.value.trim();
+        
+        if (!text) {
+            return; // Don't send empty messages
+        }
+        
+        // Add user message to chat log
+        addMessageToChat(chatLog, `You: ${text}`, 'user');
+        
+        // Clear input field
+        inputField.value = '';
+        
+        // Disable input while processing
+        inputField.disabled = true;
+        submitButton.disabled = true;
+        
+        try {
+            // Send to backend
+            const response = await apiCall('/api/text', 'POST', {
+                text: text
+            });
+            
+            // Add bot response to chat log
+            const botMessage = response?.response || response?.message || JSON.stringify(response);
+            addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
+            
+            // Show typing animation in dialogue element
+            const dialogueElement = document.querySelector('.dialogue');
+            if (dialogueElement) {
+                typeText(dialogueElement, botMessage, response?.audio);
+            }
+            
+            // Scroll to bottom of chat log
+            chatLog.scrollTop = chatLog.scrollHeight;
+            
+        } catch (error) {
+            console.error('Error sending message:', error);
+            addMessageToChat(chatLog, `Bot: Error - ${error.message}`, 'error');
+        } finally {
+            // Re-enable input
+            inputField.disabled = false;
+            submitButton.disabled = false;
+            inputField.focus();
+        }
+    };
+    
+    // Handle submit button click
+    submitButton.addEventListener('click', sendMessage);
+    
+    // Handle Enter key press
+    inputField.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+}
+
+/**
+ * Add a message to the chat log
+ */
+function addMessageToChat(chatLog, message, type = 'user') {
+    if (!chatLog) return;
+    
+    const messageElement = document.createElement('p');
+    messageElement.textContent = message;
+    
+    // Add styling based on message type
+    if (type === 'user') {
+        messageElement.style.color = '#007bff';
+        messageElement.style.fontWeight = '500';
+    } else if (type === 'error') {
+        messageElement.style.color = '#dc3545';
+    } else {
+        messageElement.style.color = '#28a745';
+    }
+    
+    chatLog.appendChild(messageElement);
+}
+
+/**
+ * Type text with animation in the dialogue element
+ * @param {HTMLElement} element - The dialogue element to update
+ * @param {string} text - The text to type
+ * @param {Object} audioData - Optional audio data to play
+ */
+function typeText(element, text, audioData = null) {
+    // Clear any existing typing animation
+    if (element.typingAnimation) {
+        clearInterval(element.typingAnimation);
+        element.typingAnimation = null;
+    }
+    
+    // Show the dialogue element
+    element.style.display = 'block';
+    element.style.opacity = '1';
+    element.style.transition = '';
+    
+    // Clear the element
+    element.textContent = '';
+    
+    let currentIndex = 0;
+    const typingSpeed = 30; // milliseconds per character
+    
+    // Start audio immediately (at the same time as typing)
+    let audio = null;
+    if (audioData) {
+        audio = playAudio(audioData);
+        if (audio) {
+            // Clear dialogue when audio finishes
+            audio.onended = () => {
+                console.log('Audio playback finished');
+                // Fade out and clear dialogue
+                fadeOutDialogue(element);
+            };
+        }
+    }
+    
+    // Start typing animation
+    element.typingAnimation = setInterval(() => {
+        if (currentIndex < text.length) {
+            element.textContent = text.substring(0, currentIndex + 1);
+            currentIndex++;
+        } else {
+            // Typing complete
+            clearInterval(element.typingAnimation);
+            element.typingAnimation = null;
+            
+            // If no audio was available, clear after a delay
+            if (!audio) {
+                setTimeout(() => fadeOutDialogue(element), 2000);
+            }
+            // If audio is playing, it will handle clearing when it finishes
+        }
+    }, typingSpeed);
+}
+
+/**
+ * Fade out and clear the dialogue element, then hide it
+ */
+function fadeOutDialogue(element) {
+    if (!element) return;
+    
+    // Add fade out animation
+    element.style.transition = 'opacity 0.5s ease-out';
+    element.style.opacity = '0';
+    
+    // Clear text and hide element after fade
+    setTimeout(() => {
+        element.textContent = '';
+        element.style.display = 'none'; // Hide the element
+        element.style.opacity = '1'; // Reset for next time
+        element.style.transition = '';
+    }, 500);
+}
+
+/**
+ * Play audio from response
+ * Expects audio data in the format from api_server.py:
+ * {
+ *   "data": "base64_encoded_audio_string",
+ *   "format": "mp3",
+ *   "data_url": "data:audio/mpeg;base64,..."
+ * }
+ * @returns {HTMLAudioElement|null} The audio element if created, null otherwise
+ */
+function playAudio(audioData) {
+    try {
+        let audioUrl = null;
+        
+        // Prefer data_url if available (already formatted correctly)
+        if (audioData.data_url) {
+            audioUrl = audioData.data_url;
+        } 
+        // Otherwise, construct data URL from base64 data and format
+        else if (audioData.data && audioData.format) {
+            // Format: data:audio/{format};base64,{base64_data}
+            const mimeType = audioData.format === 'mp3' ? 'mpeg' : audioData.format;
+            audioUrl = `data:audio/${mimeType};base64,${audioData.data}`;
+        }
+        // Fallback: try to use data directly (might already be a data URL)
+        else if (audioData.data) {
+            audioUrl = audioData.data;
+        }
+        
+        if (!audioUrl) {
+            console.warn('No audio data found in response:', audioData);
+            return null;
+        }
+        
+        console.log('Playing audio with format:', audioData.format || 'unknown');
+        
+        // Create audio element
+        const audio = new Audio(audioUrl);
+        
+        // Handle audio events
+        audio.onloadstart = () => {
+            console.log('Audio loading started');
+        };
+        
+        audio.oncanplay = () => {
+            console.log('Audio ready to play');
+        };
+        
+        audio.onerror = (error) => {
+            console.error('Error playing audio:', error);
+        };
+        
+        // Play the audio
+        audio.play().catch(error => {
+            console.error('Failed to play audio:', error);
+            // Some browsers require user interaction before playing audio
+            // This is expected behavior for autoplay policies
+        });
+        
+        return audio;
+        
+    } catch (error) {
+        console.error('Error processing audio:', error);
+        return null;
     }
 }
 
