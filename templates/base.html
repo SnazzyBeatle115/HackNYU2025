@@ -1,17 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Flask ML Web App{% endblock %}</title>
+    <title>{% block title %}Conscience AI{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/girl1.PNG') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
     <main>
         {% block content %}{% endblock %}
     </main>
-    
+
     {% block scripts %}{% endblock %}
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
+
 </html>
