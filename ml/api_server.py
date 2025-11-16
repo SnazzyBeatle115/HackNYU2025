@@ -262,19 +262,21 @@ def parse_timer_request(message):
             'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60
         }
         
-        # Replace spelled-out numbers with digits
+        # Replace spelled-out numbers with digits (including hyphens)
         temp_message = message_lower
         for word, num in word_to_num.items():
-            temp_message = re.sub(r'\b' + word + r'\b', str(num), temp_message)
+            # Replace both "ten minute" and "ten-minute" patterns
+            temp_message = re.sub(r'\b' + word + r'-?', str(num) + ' ', temp_message)
         
         # Patterns to match time durations (order matters - more specific patterns first)
         # Match patterns like: "3 minutes", "5 min", "30 seconds", "1 hour", etc.
+        # Allow optional hyphens and flexible spacing
         patterns = [
-            (r'(\d+)\s*(?:hour|hr|h)s?\s+(?:and\s+)?(\d+)\s*(?:minute|min|m)s?', 'hours_minutes'),
-            (r'(\d+)\s*(?:minute|min|m)s?\s+(?:and\s+)?(\d+)\s*(?:second|sec|s)s?', 'minutes_seconds'),
-            (r'(\d+)\s*(?:hour|hr|h)s?', 'hours_only'),
-            (r'(\d+)\s*(?:minute|min|m)s?', 'minutes_only'),
-            (r'(\d+)\s*(?:second|sec|s)(?:econds?)?', 'seconds_only'),
+            (r'(\d+)\s*-?\s*(?:hour|hr|h)s?\s+(?:and\s+)?(\d+)\s*-?\s*(?:minute|min|m)s?', 'hours_minutes'),
+            (r'(\d+)\s*-?\s*(?:minute|min|m)s?\s+(?:and\s+)?(\d+)\s*-?\s*(?:second|sec|s)s?', 'minutes_seconds'),
+            (r'(\d+)\s*-?\s*(?:hour|hr|h)s?', 'hours_only'),
+            (r'(\d+)\s*-?\s*(?:minute|min|m)s?', 'minutes_only'),
+            (r'(\d+)\s*-?\s*(?:second|sec|s)(?:econds?)?', 'seconds_only'),
         ]
         
         total_seconds = 0

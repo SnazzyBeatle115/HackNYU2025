@@ -46,6 +46,15 @@ let cameraStream = null;
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Flask ML Web App loaded successfully');
+    // Log configured and effective capture intervals at startup
+    console.log('[Config] Raw intervals from template:', {
+        TIME_INTERVAL_SCREEN_CAPTURE_raw: globalThis.TIME_INTERVAL_SCREEN_CAPTURE,
+        TIME_INTERVAL_CAMERA_CAPTURE_raw: globalThis.TIME_INTERVAL_CAMERA_CAPTURE
+    });
+    console.log('[Config] Effective intervals (ms):', {
+        TIME_INTERVAL_SCREEN_CAPTURE,
+        TIME_INTERVAL_CAMERA_CAPTURE
+    });
 
     // Add smooth scrolling for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -68,9 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             e.stopPropagation();
             console.log('Screen capture button clicked (direct)');
-            // Start/stop screen capture (camera optional)
+            // Start/stop screen capture only (avoid simultaneous camera prompt)
             toggleScreenCapture();
-            toggleCameraCapture();
         });
 
     }
@@ -134,8 +142,20 @@ async function startScreenCapture() {
         screenVideoElement.srcObject = screenStream;
         await screenVideoElement.play();
 
-        // Periodic screenshot
-        screenCaptureInterval = setInterval(() => captureScreenshot(screenVideoElement), TIME_INTERVAL_SCREEN_CAPTURE);
+        // Wait until metadata is loaded so videoWidth/Height are available
+        if (!screenVideoElement.videoWidth || !screenVideoElement.videoHeight) {
+            await new Promise((resolve) => {
+                const done = () => resolve();
+                screenVideoElement.onloadedmetadata = done;
+                // Fallback: resolve after a short timeout if event doesn't fire
+                setTimeout(done, 500);
+            });
+        }
+
+        // Clear any existing interval then start periodic screenshot
+        if (screenCaptureInterval) clearInterval(screenCaptureInterval);
+        const intervalMs = Number(globalThis.TIME_INTERVAL_SCREEN_CAPTURE) || TIME_INTERVAL_SCREEN_CAPTURE || 2000;
+        screenCaptureInterval = setInterval(() => captureScreenshot(screenVideoElement), intervalMs);
         screenCaptureActive = true;
 
         console.log('Screen capture started');
@@ -173,6 +193,11 @@ function stopScreenCapture() {
 }
 
 function captureScreenshot(videoEl) {
+    // Guard against unready video frames
+    if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
+        console.warn('Skipping capture: video not ready');
+        return;
+    }
     const canvas = document.createElement("canvas");
     canvas.width = videoEl.videoWidth;
     canvas.height = videoEl.videoHeight;
@@ -181,6 +206,12 @@ function captureScreenshot(videoEl) {
     ctx.drawImage(videoEl, 0, 0);
 
     const base64 = canvas.toDataURL("image/jpeg", 0.7); // compressed
+
+    // Debug: log size of payload being sent
+    try {
+        const len = (base64 && base64.length) || 0;
+        console.log('Sending screenshot (base64 length):', len);
+    } catch { }
 
     sendScreenshot(base64);
 }
@@ -630,8 +661,53 @@ function playAudio(audioData) {
 }
 
 /**
+ * Extract timer duration from response text
+ * @param {string} text - Response text that may contain timer info
+ * @returns {string|null} Time in MM:SS format or null
+ */
+function extractTimerFromResponse(text) {
+    if (!text) return null;
+
+    // Pattern to match time mentions like "10 minute", "5 minutes", "30 seconds"
+    const patterns = [
+        /(\d+)\s*(?:minute|min)s?/i,
+        /(\d+)\s*(?:second|sec)s?/i,
+        /(\d+)\s*(?:hour|hr)s?/i
+    ];
+
+    let totalSeconds = 0;
+
+    // Check for minutes
+    const minMatch = text.match(/(\d+)\s*(?:minute|min)s?/i);
+    if (minMatch) {
+        totalSeconds += parseInt(minMatch[1]) * 60;
+    }
+
+    // Check for hours
+    const hourMatch = text.match(/(\d+)\s*(?:hour|hr)s?/i);
+    if (hourMatch) {
+        totalSeconds += parseInt(hourMatch[1]) * 3600;
+    }
+
+    // Check for seconds (only if no minutes/hours found)
+    if (totalSeconds === 0) {
+        const secMatch = text.match(/(\d+)\s*(?:second|sec)s?/i);
+        if (secMatch) {
+            totalSeconds = parseInt(secMatch[1]);
+        }
+    }
+
+    if (totalSeconds === 0) return null;
+
+    // Convert to MM:SS
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+/**
  * Start a countdown timer
- * @param {string} timeString - Time in MM:SS format (e.g., "05:00", "00:30")
+ * @param {string} timeString - Time in MM:SS or HH:MM:SS format (e.g., "05:00", "00:30", "01:30:00")
  */
 function startTimer(timeString) {
     // Clear any existing timer
@@ -640,25 +716,37 @@ function startTimer(timeString) {
         window.timerInterval = null;
     }
 
-    // Parse MM:SS format
+    // Parse MM:SS or HH:MM:SS format
     const parts = timeString.split(':');
-    if (parts.length !== 2) {
-        console.error('Invalid time format. Expected MM:SS, got:', timeString);
+    let totalSeconds = 0;
+
+    if (parts.length === 3) {
+        // HH:MM:SS format
+        totalSeconds = parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
+    } else if (parts.length === 2) {
+        // MM:SS format
+        totalSeconds = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    } else {
+        console.error('Invalid time format. Expected MM:SS or HH:MM:SS, got:', timeString);
         return;
     }
-
-    let totalSeconds = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
 
     if (isNaN(totalSeconds) || totalSeconds <= 0) {
         console.error('Invalid time value:', timeString);
         return;
     }
 
-    // Get timer display element
+    // Get timer container and display element
+    const timerContainer = document.querySelector('.timer');
     const timerElement = document.querySelector('.timer p');
     if (!timerElement) {
         console.warn('Timer display element not found');
         return;
+    }
+
+    // Show timer when starting
+    if (timerContainer) {
+        timerContainer.style.display = 'block';
     }
 
     // Update timer display immediately
@@ -683,6 +771,11 @@ function startTimer(timeString) {
 
             // Show completion notification
             showNotification('Timer completed!', 'info');
+
+            // Hide timer after completion
+            if (timerContainer) {
+                timerContainer.style.display = 'none';
+            }
 
             // Optional: Play a sound or trigger an event
             console.log('Timer completed!');
@@ -1062,9 +1155,20 @@ async function sendAudioToBackend(base64Audio, format) {
         }
 
         // Handle timer if present in response
-        if (result?.time) {
-            console.log('Starting timer from voice input with time:', result.time);
-            startTimer(result.time);
+        let timerTime = result?.time;
+
+        // If no explicit time field, try to extract from response text
+        if (!timerTime && result?.response) {
+            const extracted = extractTimerFromResponse(result.response);
+            if (extracted) {
+                timerTime = extracted;
+                console.log('Extracted timer from response text:', timerTime);
+            }
+        }
+
+        if (timerTime) {
+            console.log('Starting timer from voice input with time:', timerTime);
+            startTimer(timerTime);
         } else {
             console.log('No timer time found in voice response');
         }
