@@ -57,18 +57,16 @@ input:focus {
 
 .main {
     padding: 0% 10%;
-    padding-top: 3rem;
     
     width: 70%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
     gap: 2rem;
     position: relative;
 }
 
 .main > h1 {
+    margin-top: 4rem;
+    margin-bottom: 3rem;
+
     padding: 0.5rem;
     width: 100%;
     font-size: 2rem;
@@ -105,6 +103,8 @@ input:focus {
 }
 
 .timer {
+    margin-top: 2rem;
+    width: 200px;
     padding: 1.3rem;
     background-color: white;
     border-radius: 0;
@@ -116,17 +116,22 @@ input:focus {
 }
 
 .center {
+    position: fixed;
+    left: 0;
+    top: 30%;
+    height: 60%;
+    width: 100%;
+
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: space-between;
 
     padding-right: 5%;
-
-    width: 100%;
-    flex: 1;
 }
 
 .character-img {
+    border-radius: 100%;
     position: relative;
     width: 200px;
     height: auto;
@@ -164,6 +169,7 @@ input:focus {
 }
 
 .input {
+    margin-left: 25%;
     background-color: white;
     border-radius: 0;
     font-size: 1.5rem;

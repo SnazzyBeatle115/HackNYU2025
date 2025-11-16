@@ -8,25 +8,25 @@
     <div class="main">
         <h1> Conscience AI </h1>
 
-        <div class="center">
-            <div class="timer">
-                <p> 00:15 </p>
-            </div>
+        <div class="timer">
+            <p> 00:15 </p>
+        </div>
 
+        <div class="center">
             <button class="character-img">
                 <p class="dialogue"> Hey, you gotta lock in! </p>
 
                 <img src="{{ url_for('static', filename='images/sample.jpg') }}" alt="Conscience AI Logo">
             </button>
-        </div>
 
-        <div class="input">
-            <input class="input-text" type="text" placeholder="Enter your next task ->">
-            <button class="submit-btn" type="submit">
-                <img src="{{ url_for('static', filename='images/arrow.png') }}" alt="Send">
-            </button>
+            <div class="input">
+                <input class="input-text" type="text" placeholder="Enter your next task ->">
+                <button class="submit-btn" type="submit">
+                    <img src="{{ url_for('static', filename='images/arrow.png') }}" alt="Send">
+                </button>
 
-            <!-- <input type="file" accept="audio/*" capture> -->
+                <!-- <input type="file" accept="audio/*" capture> -->
+            </div>
         </div>
     </div>
 
