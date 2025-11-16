@@ -8,6 +8,10 @@
 const TIME_INTERVAL_SCREEN_CAPTURE = globalThis.TIME_INTERVAL_SCREEN_CAPTURE || 2000;
 const TIME_INTERVAL_CAMERA_CAPTURE = globalThis.TIME_INTERVAL_CAMERA_CAPTURE || 2000;
 
+// Global study reminder cooldown (applies to screen + camera)
+const STUDY_REMINDER_COOLDOWN_MS = 60_000; // 1 minute
+let lastStudyReminderTs = 0;
+
 // Audio recording state (session-based model)
 let isListening = false;
 let currentMediaRecorder = null;
@@ -360,6 +364,17 @@ async function sendScreenshot(base64Image) {
  */
 async function sendStudyReminder(source, activityDetected) {
     try {
+        // Throttle reminders globally across screen + camera
+        const now = Date.now();
+        const elapsed = now - lastStudyReminderTs;
+        if (elapsed < STUDY_REMINDER_COOLDOWN_MS) {
+            const remaining = Math.ceil((STUDY_REMINDER_COOLDOWN_MS - elapsed) / 1000);
+            console.log(`Skipping reminder (cooldown active, ${remaining}s left)`);
+            return;
+        }
+        // Set timestamp early to avoid burst duplicates
+        lastStudyReminderTs = now;
+
         const chatLog = document.querySelector('.log');
         if (!chatLog) {
             console.warn('Chat log element not found');
