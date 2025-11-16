@@ -57,13 +57,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set up screen capture button
     const screenButton = document.querySelector(".screen-btn");
     if (screenButton) {
-        screenButton.addEventListener("click", () => {
-            console.log('Screen button clicked');
-            toggleCameraCapture();
+        console.log('Binding direct handler for .screen-btn');
+        screenButton.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Screen capture button clicked (direct)');
+            // Start/stop screen capture (camera optional)
             toggleScreenCapture();
+            toggleCameraCapture();
         });
 
     }
+
+    // Delegated handler as a fallback in case element is re-rendered
+    document.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest && e.target.closest('.screen-btn');
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Screen capture button clicked (delegated)');
+            toggleScreenCapture();
+        }
+    });
 
     // // Set up camera capture button
     // const cameraButton = document.querySelector(".camera-btn");
@@ -93,18 +108,10 @@ document.addEventListener('DOMContentLoaded', () => {
  * Toggle screen capture on/off
  */
 async function toggleScreenCapture() {
-    const btn = document.querySelector('.screen-btn');
     if (screenCaptureActive) {
         stopScreenCapture();
-        if (btn) btn.textContent = 'Start screen capture';
     } else {
-        console.log('Screen capture button clicked');
-        if (btn) btn.disabled = true;
         await startScreenCapture();
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = screenCaptureActive ? 'Stop screen capture' : 'Start screen capture';
-        }
     }
 }
 
@@ -119,16 +126,7 @@ async function startScreenCapture() {
 
         screenVideoElement = document.createElement("video");
         screenVideoElement.srcObject = screenStream;
-        screenVideoElement.playsInline = true;
         await screenVideoElement.play();
-
-        // Ensure metadata is loaded before capturing
-        if (!screenVideoElement.videoWidth || !screenVideoElement.videoHeight) {
-            await new Promise(resolve => {
-                screenVideoElement.onloadedmetadata = () => resolve();
-                setTimeout(resolve, 500); // fallback
-            });
-        }
 
         // Periodic screenshot
         screenCaptureInterval = setInterval(() => captureScreenshot(screenVideoElement), TIME_INTERVAL_SCREEN_CAPTURE);
@@ -169,10 +167,6 @@ function stopScreenCapture() {
 }
 
 function captureScreenshot(videoEl) {
-    if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
-        // Skip until video is ready
-        return;
-    }
     const canvas = document.createElement("canvas");
     canvas.width = videoEl.videoWidth;
     canvas.height = videoEl.videoHeight;
