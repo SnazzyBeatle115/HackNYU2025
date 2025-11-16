@@ -13,6 +13,17 @@ let isListening = false;
 let currentMediaRecorder = null;
 let currentAudioChunks = [];
 let currentAudioStream = null;
+let audioAnalyser = null;
+let audioContext = null;
+let audioMonitorInterval = null;
+
+// Adaptive speech control configuration
+const SPEECH_RMS_THRESHOLD = 0.01;        // Minimum RMS to treat as speech
+const SILENCE_MS_BEFORE_STOP = 1200;       // Stop after this long below threshold
+const MIN_RECORDING_MS = 500;              // Ignore recordings shorter than this
+const MAX_RECORDING_MS = 30000;            // Safety cap (30s) to avoid endless capture
+let lastAboveThresholdTime = 0;
+let recordingStartTime = 0;
 
 // Screen capture state
 let screenCaptureActive = false;
@@ -46,7 +57,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set up screen capture button
     const screenButton = document.querySelector(".screen-btn");
     if (screenButton) {
-        screenButton.addEventListener("click", toggleScreenCapture);
+        screenButton.addEventListener("click", () => {
+            console.log('Screen button clicked');
+            toggleCameraCapture();
+            toggleScreenCapture();
+        });
+
     }
 
     // // Set up camera capture button
@@ -66,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (recordButton) {
         recordButton.addEventListener("click", () => {
             toggleAudioRecording();
-            toggleCameraCapture();
+            // toggleCameraCapture();
             // toggleScreenCapture();
         });
     }
@@ -77,10 +93,18 @@ document.addEventListener('DOMContentLoaded', () => {
  * Toggle screen capture on/off
  */
 async function toggleScreenCapture() {
+    const btn = document.querySelector('.screen-btn');
     if (screenCaptureActive) {
         stopScreenCapture();
+        if (btn) btn.textContent = 'Start screen capture';
     } else {
+        console.log('Screen capture button clicked');
+        if (btn) btn.disabled = true;
         await startScreenCapture();
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = screenCaptureActive ? 'Stop screen capture' : 'Start screen capture';
+        }
     }
 }
 
@@ -95,7 +119,16 @@ async function startScreenCapture() {
 
         screenVideoElement = document.createElement("video");
         screenVideoElement.srcObject = screenStream;
+        screenVideoElement.playsInline = true;
         await screenVideoElement.play();
+
+        // Ensure metadata is loaded before capturing
+        if (!screenVideoElement.videoWidth || !screenVideoElement.videoHeight) {
+            await new Promise(resolve => {
+                screenVideoElement.onloadedmetadata = () => resolve();
+                setTimeout(resolve, 500); // fallback
+            });
+        }
 
         // Periodic screenshot
         screenCaptureInterval = setInterval(() => captureScreenshot(screenVideoElement), TIME_INTERVAL_SCREEN_CAPTURE);
@@ -136,6 +169,10 @@ function stopScreenCapture() {
 }
 
 function captureScreenshot(videoEl) {
+    if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) {
+        // Skip until video is ready
+        return;
+    }
     const canvas = document.createElement("canvas");
     canvas.width = videoEl.videoWidth;
     canvas.height = videoEl.videoHeight;
@@ -589,9 +626,9 @@ function playAudio(audioData) {
  */
 async function toggleAudioRecording() {
     if (isListening) {
-        stopListeningWindow();
+        stopAdaptiveRecording();
     } else {
-        await startListeningWindow(6000); // 6 second listening window
+        await startAdaptiveRecording();
     }
 }
 
@@ -679,6 +716,125 @@ function stopListeningWindow() {
     if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
         currentMediaRecorder.stop();
         console.log('Manually stopping listening window');
+    }
+}
+
+/**
+ * Start adaptive recording: captures while RMS above threshold, stops after silence.
+ */
+async function startAdaptiveRecording() {
+    try {
+        console.log('Adaptive audio recording started');
+        showNotification('Listening...', 'info');
+        currentAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        currentAudioChunks = [];
+        const options = { mimeType: 'audio/webm' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            console.warn('audio/webm not supported, using default');
+            currentMediaRecorder = new MediaRecorder(currentAudioStream);
+        } else {
+            currentMediaRecorder = new MediaRecorder(currentAudioStream, options);
+        }
+
+        // Setup audio context & analyser for RMS
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const srcNode = audioContext.createMediaStreamSource(currentAudioStream);
+        audioAnalyser = audioContext.createAnalyser();
+        audioAnalyser.fftSize = 2048;
+        srcNode.connect(audioAnalyser);
+
+        lastAboveThresholdTime = Date.now();
+        recordingStartTime = Date.now();
+
+        currentMediaRecorder.ondataavailable = e => {
+            if (e.data && e.data.size > 0) {
+                currentAudioChunks.push(e.data);
+            }
+        };
+
+        currentMediaRecorder.onstop = async () => {
+            cleanupAudioMonitoring();
+            try {
+                const elapsed = Date.now() - recordingStartTime;
+                const blob = new Blob(currentAudioChunks, { type: 'audio/webm' });
+                console.log('Adaptive recording stopped; duration:', elapsed, 'ms; blob size:', blob.size);
+                if (elapsed < MIN_RECORDING_MS || blob.size < 2000) {
+                    console.log('Ignoring too-short / tiny recording');
+                    return;
+                }
+                const base64 = await blobToBase64WithoutPrefix(blob);
+                console.log('Uploading full adaptive audio clip to /api/voice, size:', blob.size);
+                await sendAudioToBackend(base64, 'audio/webm');
+            } catch (err) {
+                console.error('Error handling adaptive audio:', err);
+                showNotification('Audio error: ' + err.message, 'error');
+            } finally {
+                if (currentAudioStream) {
+                    currentAudioStream.getTracks().forEach(t => t.stop());
+                    currentAudioStream = null;
+                }
+                isListening = false;
+                showNotification('Stopped listening', 'info');
+            }
+        };
+
+        currentMediaRecorder.start();
+        isListening = true;
+        audioMonitorInterval = setInterval(monitorSpeechRMS, 150); // check ~6.6x per second
+
+        // Safety cap timeout
+        setTimeout(() => {
+            if (isListening && currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+                console.log('Max recording duration reached, stopping.');
+                currentMediaRecorder.stop();
+            }
+        }, MAX_RECORDING_MS);
+    } catch (err) {
+        console.error('Failed to start adaptive recording:', err);
+        showNotification('Failed to start listening: ' + err.message, 'error');
+    }
+}
+
+function monitorSpeechRMS() {
+    if (!audioAnalyser || !isListening) return;
+    const len = audioAnalyser.fftSize;
+    const data = new Float32Array(len);
+    audioAnalyser.getFloatTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += data[i] * data[i];
+    const rms = Math.sqrt(sum / len);
+
+    const now = Date.now();
+    if (rms >= SPEECH_RMS_THRESHOLD) {
+        lastAboveThresholdTime = now;
+    }
+
+    // Stop after sufficient silence
+    if (now - lastAboveThresholdTime > SILENCE_MS_BEFORE_STOP && currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+        const activeMs = now - recordingStartTime;
+        if (activeMs >= MIN_RECORDING_MS) {
+            console.log('Silence detected for', (now - lastAboveThresholdTime), 'ms; stopping recording. Last RMS:', rms.toFixed(4));
+            currentMediaRecorder.stop();
+        }
+    }
+}
+
+function cleanupAudioMonitoring() {
+    if (audioMonitorInterval) {
+        clearInterval(audioMonitorInterval);
+        audioMonitorInterval = null;
+    }
+    if (audioContext) {
+        audioContext.close().catch(() => { });
+        audioContext = null;
+    }
+    audioAnalyser = null;
+}
+
+function stopAdaptiveRecording() {
+    if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+        console.log('Manual stop requested for adaptive recording');
+        currentMediaRecorder.stop();
     }
 }
 
