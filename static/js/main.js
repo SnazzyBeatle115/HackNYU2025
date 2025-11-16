@@ -57,7 +57,57 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Record button pressed");
     });
 
+    // Initialize coin display and sync with farm
+    initializeCoinDisplay();
+
 });
+
+/**
+ * Initialize and sync coin display with farm page
+ */
+function initializeCoinDisplay() {
+    const coinElement = document.getElementById('mainCoins');
+    if (!coinElement) return;
+    
+    // Load coins from localStorage (same storage as farm page)
+    function updateCoinDisplay() {
+        const saved = localStorage.getItem('farmState');
+        if (saved) {
+            try {
+                const state = JSON.parse(saved);
+                const coins = state.coins || 1000;
+                coinElement.textContent = coins;
+            } catch (e) {
+                console.error('Error loading coins:', e);
+                coinElement.textContent = 1000;
+            }
+        } else {
+            coinElement.textContent = 1000;
+        }
+    }
+    
+    // Update on page load
+    updateCoinDisplay();
+    
+    // Listen for storage changes (when farm page updates coins in other tabs/windows)
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'farmState') {
+            updateCoinDisplay();
+        }
+    });
+    
+    // Update when page becomes visible (user returns from farm page)
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            updateCoinDisplay();
+        }
+    });
+    
+    // Also check periodically to sync with farm page
+    setInterval(() => {
+        updateCoinDisplay();
+    }, 1000); // Check every second
+}
 
 async function startScreenCapture() {
     const stream = await navigator.mediaDevices.getDisplayMedia({
