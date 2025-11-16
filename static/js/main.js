@@ -16,6 +16,12 @@ let currentAudioStream = null;
 let audioAnalyser = null;
 let audioContext = null;
 let audioMonitorInterval = null;
+let recordingEnabled = false; // Master flag controlling recording behavior
+let lastToggleTs = 0;       // Debounce toggle clicks
+
+function isRecordingActive() {
+    return !!(currentMediaRecorder && currentMediaRecorder.state && currentMediaRecorder.state !== 'inactive');
+}
 
 // Adaptive speech control configuration
 const SPEECH_RMS_THRESHOLD = 0.01;        // Minimum RMS to treat as speech
@@ -493,12 +499,14 @@ function typeText(element, text, audioData = null) {
                 // Fade out and clear dialogue
                 fadeOutDialogue(element);
 
-                // Resume recording if it was active before
-                if (wasListening) {
+                // Resume recording only if master flag is enabled
+                if (recordingEnabled) {
                     setTimeout(() => {
-                        startListeningWindow(6000);
+                        startAdaptiveRecording();
                         console.log('Resumed recording after audio playback');
                     }, 500); // Small delay after audio ends
+                } else {
+                    console.log('Not resuming recording (recordingEnabled:', recordingEnabled, ')');
                 }
             };
         }
@@ -619,10 +627,32 @@ function playAudio(audioData) {
  * Now uses session-based recording (one complete WebM file per window)
  */
 async function toggleAudioRecording() {
-    if (isListening) {
-        stopAdaptiveRecording();
-    } else {
+    // Debounce rapid double clicks
+    const now = Date.now();
+    if (now - lastToggleTs < 300) {
+        console.log('Toggle ignored (debounced)');
+        return;
+    }
+    lastToggleTs = now;
+
+    // Flip master control
+    recordingEnabled = !recordingEnabled;
+
+    if (!recordingEnabled) {
+        // Disable and stop any active recording
+        if (isListening || isRecordingActive()) {
+            isListening = false; // prevent re-entrancy
+            stopAdaptiveRecording();
+        }
+        console.log('Recording disabled');
+        return;
+    }
+
+    // Enabled: start if not already active
+    if (!isRecordingActive() && !isListening) {
         await startAdaptiveRecording();
+    } else {
+        console.log('Recording already active (enabled)');
     }
 }
 
@@ -718,6 +748,17 @@ function stopListeningWindow() {
  */
 async function startAdaptiveRecording() {
     try {
+        // Respect master control flag
+        if (!recordingEnabled) {
+            console.log('Recording disabled; start ignored');
+            return;
+        }
+        // Prevent starting if already active
+        if (isListening || isRecordingActive()) {
+            console.log('Recording already active; start ignored');
+            return;
+        }
+
         console.log('Adaptive audio recording started');
         showNotification('Listening...', 'info');
         currentAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -774,6 +815,11 @@ async function startAdaptiveRecording() {
 
         currentMediaRecorder.start();
         isListening = true;
+        // Ensure any previous monitor is cleared
+        if (audioMonitorInterval) {
+            clearInterval(audioMonitorInterval);
+            audioMonitorInterval = null;
+        }
         audioMonitorInterval = setInterval(monitorSpeechRMS, 150); // check ~6.6x per second
 
         // Safety cap timeout
@@ -791,6 +837,14 @@ async function startAdaptiveRecording() {
 
 function monitorSpeechRMS() {
     if (!audioAnalyser || !isListening) return;
+    // If master control disabled mid-stream, stop gracefully
+    if (!recordingEnabled) {
+        if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+            console.log('Recording disabled during monitor; stopping recorder');
+            currentMediaRecorder.stop();
+        }
+        return;
+    }
     const len = audioAnalyser.fftSize;
     const data = new Float32Array(len);
     audioAnalyser.getFloatTimeDomainData(data);
