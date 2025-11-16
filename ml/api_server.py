@@ -672,26 +672,39 @@ def detect_camera():
 CRITICAL RULES:
 - If NO person is visible in the camera = NOT studying (person is absent)
 - If person is using a phone, tablet, or mobile device = NOT studying (distraction)
-- If person is looking away from the screen/desk = NOT studying
 - If person appears to be sleeping or not engaged = NOT studying
-- If person is eating, drinking, or doing non-study activities = NOT studying
+- If person is eating a full meal (not just a quick snack) = NOT studying
+
+IMPORTANT: Looking at the screen/camera IS studying
+- When a person is looking at the screen (or camera, which is typically on/near the screen), they are likely engaged with their computer work
+- "Looking at the camera" or "looking at the screen" should be considered as studying, as the person is facing their work area
+- The camera is typically positioned on or near the computer screen, so looking at the camera means they are facing their screen
+
+IMPORTANT: Brief breaks are part of studying
+- Drinking water is a normal, healthy break that should be considered as studying (person is still in their study environment)
+- Stretching or taking a brief break while at the desk is part of studying (person is maintaining focus and taking care of themselves)
+- These brief activities indicate the person is actively managing their study session and should be counted as studying
 
 Person is PRESENT and studying if:
-- Person is visible and facing the screen/desk
+- Person is visible and facing the screen/desk/camera
+- Person is looking at the screen or camera (this indicates they are facing their work)
 - Person appears engaged with computer/work materials
 - Person is actively reading, writing, or working
 - Person is focused on their study materials
+- Person is taking a brief break (drinking water, stretching) while at their study location
+- Person is in their study environment and taking short, healthy breaks
 
 Person is PRESENT but NOT studying if:
-- Person is using a phone, tablet, or mobile device
-- Person is looking away from their work
-- Person is eating, drinking, or doing other activities
-- Person appears distracted or not focused
+- Person is using a phone, tablet, or mobile device (not the computer screen)
+- Person is looking away from their work/screen (turned away, looking at something else, completely disengaged)
+- Person is eating a full meal (not just a quick snack or drink)
+- Person appears completely distracted or not focused on their work environment
 - Person is talking on phone or video calling (not study-related)
+- Person is sleeping or appears completely unengaged
 
 Format your response as:
 PERSON_PRESENT: [yes or no]
-ACTIVITY: [description of what person is doing - e.g., "using phone", "looking at screen", "absent from camera"]
+ACTIVITY: [description of what person is doing - e.g., "using phone", "looking at screen", "looking at camera", "drinking water", "stretching or taking a break", "absent from camera"]
 IS_STUDYING: [yes or no]
 DETAILS: [additional context - what device they're using, their posture, engagement level, etc.]"""
         
