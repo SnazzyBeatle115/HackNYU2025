@@ -5,8 +5,16 @@
 // Capture intervals are set from environment variables via template
 // These will be defined in the template script block before this file loads
 // Fallback values if not defined
-const TIME_INTERVAL_SCREEN_CAPTURE = window.TIME_INTERVAL_SCREEN_CAPTURE || 2000;
-const TIME_INTERVAL_CAMERA_CAPTURE = window.TIME_INTERVAL_CAMERA_CAPTURE || 2000;
+const TIME_INTERVAL_SCREEN_CAPTURE = globalThis.TIME_INTERVAL_SCREEN_CAPTURE || 2000;
+const TIME_INTERVAL_CAMERA_CAPTURE = globalThis.TIME_INTERVAL_CAMERA_CAPTURE || 2000;
+
+// Audio recording state
+let isListening = false;
+let mediaRecorder = null;
+let audioContext = null;
+let analyserNode = null;
+let mediaStreamSource = null;
+let audioStream = null;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
@@ -52,10 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize dialogue element visibility
     // Note: The dialogue will be shown when typing starts and hidden when cleared
-    // handle record button press
-    document.querySelector(".character-img").addEventListener("click", () => {
-        console.log("Record button pressed");
-    });
+    
+    // Handle record button press
+    const recordButton = document.querySelector(".character-img");
+    if (recordButton) {
+        recordButton.addEventListener("click", toggleAudioRecording);
+    }
 
 });
 
@@ -449,6 +459,230 @@ function playAudio(audioData) {
         console.error('Error processing audio:', error);
         return null;
     }
+}
+
+/**
+ * Toggle audio recording on/off
+ */
+async function toggleAudioRecording() {
+    if (isListening) {
+        stopAudioRecording();
+    } else {
+        await startAudioRecording();
+    }
+}
+
+/**
+ * Start audio recording with speech detection
+ */
+async function startAudioRecording() {
+    try {
+        // Request microphone access
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('Microphone access granted');
+        
+        // Create MediaRecorder for audio/webm format
+        const options = { mimeType: 'audio/webm' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            // Fallback to default if webm not supported
+            console.warn('audio/webm not supported, using default format');
+            mediaRecorder = new MediaRecorder(audioStream);
+        } else {
+            mediaRecorder = new MediaRecorder(audioStream, options);
+        }
+        
+        // Create AudioContext for audio analysis
+        const AudioContextClass = globalThis.AudioContext || globalThis.webkitAudioContext;
+        audioContext = new AudioContextClass();
+        mediaStreamSource = audioContext.createMediaStreamSource(audioStream);
+        analyserNode = audioContext.createAnalyser();
+        analyserNode.fftSize = 2048;
+        mediaStreamSource.connect(analyserNode);
+        
+        // Set up chunk handling
+        mediaRecorder.ondataavailable = async (event) => {
+            if (event.data && event.data.size > 0) {
+                await handleAudioChunk(event.data);
+            }
+        };
+        
+        // Start recording with 1000ms chunks
+        mediaRecorder.start(1000);
+        isListening = true;
+        
+        console.log('Audio recording started');
+        showNotification('Recording started', 'info');
+        
+    } catch (error) {
+        console.error('Error starting audio recording:', error);
+        showNotification('Failed to start recording: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Stop audio recording
+ */
+function stopAudioRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+    
+    if (audioStream) {
+        for (const track of audioStream.getTracks()) {
+            track.stop();
+        }
+        audioStream = null;
+    }
+    
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+    
+    mediaRecorder = null;
+    analyserNode = null;
+    mediaStreamSource = null;
+    isListening = false;
+    
+    console.log('Audio recording stopped');
+    showNotification('Recording stopped', 'info');
+}
+
+/**
+ * Calculate RMS (Root Mean Square) volume from audio buffer
+ * @param {Float32Array} audioData - Audio buffer data
+ * @returns {number} RMS volume value
+ */
+function calculateRMS(audioData) {
+    let sum = 0;
+    for (const sample of audioData) {
+        sum += sample * sample;
+    }
+    return Math.sqrt(sum / audioData.length);
+}
+
+/**
+ * Check if audio chunk contains speech based on RMS volume
+ * @returns {boolean} True if speech is detected
+ */
+function hasSpeech() {
+    if (!analyserNode) {
+        return false;
+    }
+    
+    const bufferLength = analyserNode.frequencyBinCount;
+    const dataArray = new Float32Array(bufferLength);
+    analyserNode.getFloatTimeDomainData(dataArray);
+    
+    const rms = calculateRMS(dataArray);
+    // Threshold for speech detection (adjust as needed)
+    // Typical speech RMS is above 0.01, silence is below 0.001
+    const speechThreshold = 0.01;
+    
+    const detected = rms > speechThreshold;
+    if (detected) {
+        console.log(`Speech detected - RMS: ${rms.toFixed(4)}`);
+    }
+    
+    return detected;
+}
+
+/**
+ * Handle audio chunk - upload if conditions are met
+ * @param {Blob} audioBlob - Audio chunk data
+ */
+async function handleAudioChunk(audioBlob) {
+    // Only upload if listening is active
+    if (!isListening) {
+        console.log('Skipping chunk - not in listening mode');
+        return;
+    }
+    
+    // Check if chunk contains speech
+    const containsSpeech = hasSpeech();
+    
+    if (!containsSpeech) {
+        console.log('Skipping chunk - no speech detected');
+        return;
+    }
+    
+    console.log('Uploading audio chunk with speech (size:', audioBlob.size, 'bytes)');
+    
+    try {
+        // Convert blob to base64 for sending
+        const base64Audio = await blobToBase64(audioBlob);
+        
+        // Send to backend
+        await sendAudioChunk(base64Audio, audioBlob.type);
+        
+    } catch (error) {
+        console.error('Error handling audio chunk:', error);
+    }
+}
+
+/**
+ * Convert Blob to base64 string
+ * @param {Blob} blob - Blob to convert
+ * @returns {Promise<string>} Base64 string
+ */
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result.split(',')[1]; // Remove data URL prefix
+            resolve(base64String);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+/**
+ * Send audio chunk to backend as base64
+ * @param {string} base64Audio - Base64 encoded audio data
+ * @param {string} mimeType - MIME type of the audio
+ */
+async function sendAudioChunk(base64Audio, mimeType) {
+    try {
+        // Send base64 audio as JSON to /audioin endpoint
+        const response = await fetch('/audioin', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                audio: base64Audio,
+                format: mimeType
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const result = await response.json();
+        console.log('Audio chunk sent successfully:', result);
+        
+    } catch (error) {
+        console.error('Error sending audio chunk:', error);
+    }
+}
+
+/**
+ * Convert base64 string to Blob
+ * @param {string} base64 - Base64 encoded string
+ * @param {string} mimeType - MIME type
+ * @returns {Blob} Blob object
+ */
+function base64ToBlob(base64, mimeType) {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: mimeType });
 }
 
 /**

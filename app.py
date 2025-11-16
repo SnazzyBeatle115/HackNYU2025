@@ -339,6 +339,45 @@ def process_voice():
     })
 
 
+@app.route('/audioin', methods=['POST'])
+def audio_input():
+    """
+    Handle audio input sent as base64 encoded data.
+    Expects JSON payload with 'audio' (base64 string) and optional 'format' field.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        audio_base64 = data.get('audio')
+        audio_format = data.get('format', 'audio/webm')
+        
+        if not audio_base64:
+            return jsonify({
+                'success': False,
+                'error': "Missing 'audio' field in request body."
+            }), 400
+        
+        # Decode base64 audio if needed (it should already be base64)
+        # The frontend sends it as base64 string, so we can use it directly
+        # or decode it to bytes if needed for processing
+        
+        print(f"Received audio input: format={audio_format}, base64_length={len(audio_base64)}")
+        
+        # TODO: Process the audio (e.g., send to ML server, transcribe, etc.)
+        # For now, return success response
+        return jsonify({
+            'success': True,
+            'message': 'Audio data received successfully.',
+            'format': audio_format,
+            'size': len(audio_base64)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/')
 def index():
     """Home page route"""
