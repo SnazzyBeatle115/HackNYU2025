@@ -298,6 +298,9 @@ def process_text():
         # Forward to ML server's /chat endpoint
         ml_resp = forward_text_to_ml(text, endpoint='/chat')
         
+        # Log the full ML response for debugging
+        print(f"ML server response: {ml_resp}")
+        
         # If ML server returned an error, return the error
         if isinstance(ml_resp, dict) and ml_resp.get('error'):
             try:
@@ -311,6 +314,9 @@ def process_text():
             resp = ml_resp.copy()
         else:
             resp = {'ml_response': ml_resp}
+        
+        # Log the response being sent to frontend
+        print(f"Sending to frontend: {resp}")
         
         return jsonify(resp)
     except Exception as e:

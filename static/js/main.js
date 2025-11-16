@@ -77,8 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             e.stopPropagation();
             console.log('Screen capture button clicked (direct)');
-            // Start/stop screen capture only (avoid simultaneous camera prompt)
+            // Start/stop screen capture and camera capture
             toggleScreenCapture();
+            toggleCameraCapture();
         });
 
     }
@@ -91,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             console.log('Screen capture button clicked (delegated)');
             toggleScreenCapture();
+            toggleCameraCapture();
         }
     });
 
@@ -321,6 +323,11 @@ async function sendCameraPicture(base64Image) {
         });
         console.log('Camera picture response:', responseJson);
         // showNotification(`Camera picture captured`, 'info');
+
+        // Check if user is not studying and send friendly reminder
+        if (responseJson?.is_studying === false) {
+            await sendStudyReminder('camera', responseJson?.activity_detected);
+        }
     } catch (error) {
         // showNotification('Failed to send camera picture to server.', 'error');
         console.error('Error sending camera picture:', error);
@@ -335,9 +342,66 @@ async function sendScreenshot(base64Image) {
         });
         console.log('Prediction response:', responseJson);
         // showNotification(`Prediction: ${responseJson.prediction}`, 'info');
+
+        // Check if user is not studying and send friendly reminder
+        if (responseJson?.is_studying === false) {
+            await sendStudyReminder('screen', responseJson?.activity_detected);
+        }
     } catch (error) {
         // showNotification('Failed to get prediction from server.', 'error');
         console.error('Error sending screenshot:', error);
+    }
+}
+
+/**
+ * Send friendly reminder to get back on task when is_studying is false
+ * @param {string} source - Source of the detection ('screen' or 'camera')
+ * @param {string} activityDetected - Description of what the user is doing instead of studying
+ */
+async function sendStudyReminder(source, activityDetected) {
+    try {
+        const chatLog = document.querySelector('.log');
+        if (!chatLog) {
+            console.warn('Chat log element not found');
+            return;
+        }
+
+        console.log(`User not studying detected from ${source}, sending reminder`);
+        console.log(`Activity detected: ${activityDetected}`);
+
+        // Build message with activity context
+        let messageText = "I noticed I'm not studying.";
+        if (activityDetected) {
+            messageText += ` I'm currently: ${activityDetected}.`;
+        }
+        messageText += " Give me a friendly reminder to get back on task.";
+
+        // Send reminder message to chat endpoint
+        const response = await apiCall('/api/text', 'POST', {
+            text: messageText
+        });
+
+        // Add bot response to chat log
+        const botMessage = response?.response || response?.message || JSON.stringify(response);
+        console.log('Study reminder response:', botMessage);
+        addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
+
+        // Show typing animation in dialogue element
+        const dialogueElement = document.querySelector('.dialogue');
+        if (dialogueElement) {
+            typeText(dialogueElement, botMessage, response?.audio);
+        }
+
+        // Handle timer if present in response
+        if (response?.time) {
+            startTimer(response.time);
+        }
+
+        // Scroll to bottom of chat log
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+    } catch (error) {
+        console.error('Error sending study reminder:', error);
     }
 }
 
@@ -434,6 +498,8 @@ function setupChatInput() {
             const botMessage = response?.response || response?.message || JSON.stringify(response);
             console.log('Bot text response:', botMessage);
             console.log('Full response object:', response);
+            console.log('Timer field (response.time):', response?.time);
+            console.log('Timer field exists?', 'time' in response);
             addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
 
             // Show typing animation in dialogue element
@@ -444,7 +510,10 @@ function setupChatInput() {
 
             // Handle timer if present in response
             if (response?.time) {
+                console.log('Starting timer with time:', response.time);
                 startTimer(response.time);
+            } else {
+                console.log('No timer field found in response');
             }
 
             // Scroll to bottom of chat log

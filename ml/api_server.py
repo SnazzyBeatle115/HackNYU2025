@@ -248,10 +248,21 @@ def parse_timer_request(message):
     try:
         message_lower = message.lower()
         
-        # Check if message contains timer-related keywords
+        # Check if message contains timer-related keywords or time duration patterns
         timer_keywords = ['timer', 'countdown', 'alarm']
-        if not any(keyword in message_lower for keyword in timer_keywords):
-            return None
+        time_patterns = [r'\d+\s*(?:hour|hr|h|minute|min|m|second|sec|s)s?']
+        
+        has_timer_keyword = any(keyword in message_lower for keyword in timer_keywords)
+        has_time_pattern = any(re.search(pattern, message_lower) for pattern in time_patterns)
+        
+        # Only proceed if we have a timer keyword OR a time pattern with study/focus context
+        if not has_timer_keyword:
+            # Check if message has time duration AND study/work context
+            study_keywords = ['study', 'focus', 'work', 'practice', 'review', 'learn']
+            has_study_context = any(keyword in message_lower for keyword in study_keywords)
+            
+            if not (has_time_pattern and has_study_context):
+                return None
         
         # Map spelled-out numbers to digits
         word_to_num = {
@@ -392,6 +403,10 @@ def chat():
         timer_time = None
         try:
             timer_time = parse_timer_request(user_message)
+            if timer_time:
+                print(f"[INFO] Timer detected in message: '{user_message}' -> {timer_time}")
+            else:
+                print(f"[DEBUG] No timer detected in message: '{user_message}'")
         except Exception as e:
             # If timer parsing fails, just continue without timer field
             print(f"[WARN] Timer parsing failed: {str(e)}")
@@ -440,6 +455,9 @@ def chat():
         
         if timer_time:
             result["time"] = timer_time
+            print(f"[INFO] Including timer in response: {timer_time}")
+        
+        print(f"[DEBUG] Final response keys: {list(result.keys())}")
         
         return jsonify(result), 200
     
