@@ -130,7 +130,7 @@ input:focus {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
 
     padding: 0 10%;
 }
@@ -189,7 +189,7 @@ input:focus {
 
     overflow: hidden;
     position: relative;
-    margin-bottom: 2rem;
+    margin-top: 4rem;
 }
 
 .input-text {
