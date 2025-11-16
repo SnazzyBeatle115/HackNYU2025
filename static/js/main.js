@@ -45,6 +45,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     })();
 
+    // handle record button press
+    document.querySelector(".character-img").addEventListener("click", () => {
+        E
+    });
+
 });
 
 async function startScreenCapture() {
