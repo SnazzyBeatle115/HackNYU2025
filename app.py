@@ -358,6 +358,12 @@ def about():
     return render_template('about.html')
 
 
+@app.route('/farm')
+def farm():
+    """Farm page route"""
+    return render_template('farm.html')
+
+
 # Register API blueprint so `/api` routes are available
 app.register_blueprint(api)
 

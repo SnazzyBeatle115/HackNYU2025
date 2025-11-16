@@ -7,6 +7,10 @@
     
     <div class="main">
         <h1> Conscience AI </h1>
+        
+        <a href="{{ url_for('farm') }}" class="farm-button">
+            🌳 Go to Farm
+        </a>
 
         <div class="timer">
             <p> 00:15 </p>
@@ -15,8 +19,11 @@
         <div class="center">
             <button class="character-img">
                 <p class="dialogue"> Hey, you gotta lock in! </p>
-
-                <img src="{{ url_for('static', filename='images/sample.jpg') }}" alt="Conscience AI Logo">
+                <div class="animated-character">
+                    <img src="{{ url_for('static', filename='images/girl2.PNG') }}" alt="Character frame 1" class="char-frame frame-1">
+                    <img src="{{ url_for('static', filename='images/girl3.PNG') }}" alt="Character frame 2" class="char-frame frame-2">
+                    <img src="{{ url_for('static', filename='images/girl4.PNG') }}" alt="Character frame 3" class="char-frame frame-3">
+                </div>
             </button>
 
             <div class="input">
