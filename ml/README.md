@@ -95,12 +95,16 @@ Response:
   "status": "success",
   "audio": {
     "data": "base64_encoded_audio_string",
-    "format": "mp3"
-  }
+    "format": "mp3",
+    "data_url": "data:audio/mpeg;base64,..."
+  },
+  "time": "05:00"
 }
 ```
 
-Note: The `audio` field is optional and only included if ElevenLabs is configured.
+Note: 
+- The `audio` field is optional and only included if ElevenLabs is configured.
+- The `time` field is optional and only included if the message is about a timer (e.g., "set a timer for 5 minutes"). Format is "MM:SS".
 
 **POST `/reset`** - Reset the conversation history
 ```bash
@@ -204,21 +208,32 @@ Content-Type: application/json
     "data": "base64_encoded_audio_string",
     "format": "mp3",
     "data_url": "data:audio/mpeg;base64,..."
-  }
+  },
+  "time": "05:00"
 }
 ```
 
 **Response Fields:**
 - `response` (string): The assistant's text response
 - `status` (string): Response status ("success" or "error")
-- `audio` (object, optional): Audio data for text-to-speech
+- `audio` (object, optional): Audio data for text-to-speech (only included if ElevenLabs is configured)
   - `data` (string): Base64-encoded audio data
   - `format` (string): Audio format (typically "mp3")
   - `data_url` (string): Data URL format for direct use in HTML audio elements
+- `time` (string, optional): Timer duration in "MM:SS" format (only included if the message is about a timer)
+  - Examples: "05:00" (5 minutes), "00:30" (30 seconds), "60:00" (1 hour)
 
 **Error Responses:**
 - `400 Bad Request`: Missing or empty message field
 - `500 Internal Server Error`: Assistant initialization or processing error
+
+**Timer Detection:**
+The `time` field is automatically detected and included when the message contains timer-related keywords (timer, countdown, alarm) and a time duration. Examples of messages that will include the `time` field:
+- "Set a timer for 5 minutes" → `"time": "05:00"`
+- "I want a timer of 3 minutes" → `"time": "03:00"`
+- "Timer 30 seconds" → `"time": "00:30"`
+- "1 hour timer" → `"time": "60:00"`
+- "Timer for 2 hours and 15 minutes" → `"time": "135:00"`
 
 ---
 

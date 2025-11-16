@@ -408,7 +408,12 @@ function setupChatInput() {
             if (dialogueElement) {
                 typeText(dialogueElement, botMessage, response?.audio);
             }
-
+            
+            // Handle timer if present in response
+            if (response?.time) {
+                startTimer(response.time);
+            }
+            
             // Scroll to bottom of chat log
             chatLog.scrollTop = chatLog.scrollHeight;
 
@@ -620,6 +625,69 @@ function playAudio(audioData) {
         console.error('Error processing audio:', error);
         return null;
     }
+}
+
+/**
+ * Start a countdown timer
+ * @param {string} timeString - Time in MM:SS format (e.g., "05:00", "00:30")
+ */
+function startTimer(timeString) {
+    // Clear any existing timer
+    if (window.timerInterval) {
+        clearInterval(window.timerInterval);
+        window.timerInterval = null;
+    }
+    
+    // Parse MM:SS format
+    const parts = timeString.split(':');
+    if (parts.length !== 2) {
+        console.error('Invalid time format. Expected MM:SS, got:', timeString);
+        return;
+    }
+    
+    let totalSeconds = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    
+    if (isNaN(totalSeconds) || totalSeconds <= 0) {
+        console.error('Invalid time value:', timeString);
+        return;
+    }
+    
+    // Get timer display element
+    const timerElement = document.querySelector('.timer p');
+    if (!timerElement) {
+        console.warn('Timer display element not found');
+        return;
+    }
+    
+    // Update timer display immediately
+    const updateDisplay = () => {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        const displayTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        timerElement.textContent = displayTime;
+    };
+    
+    updateDisplay();
+    
+    // Start countdown
+    window.timerInterval = setInterval(() => {
+        totalSeconds--;
+        
+        if (totalSeconds < 0) {
+            // Timer completed
+            clearInterval(window.timerInterval);
+            window.timerInterval = null;
+            timerElement.textContent = '00:00';
+            
+            // Show completion notification
+            showNotification('Timer completed!', 'info');
+            
+            // Optional: Play a sound or trigger an event
+            console.log('Timer completed!');
+        } else {
+            updateDisplay();
+        }
+    }, 1000); // Update every second
 }
 
 /**
