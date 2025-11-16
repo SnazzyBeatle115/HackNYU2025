@@ -133,15 +133,40 @@ CRITICAL: When a user wants to set a timer (e.g., "set a timer for 5 minutes", "
             {"role": "system", "content": self.system_prompt}
         ] + self.conversation_history
         
+        # Check if message might be about a timer (only include tools if timer-related)
+        timer_keywords = ['timer', 'countdown', 'alarm', 'remind me in', 'set a timer', 'set timer']
+        user_lower = user_input.lower()
+        might_be_timer = any(keyword in user_lower for keyword in timer_keywords)
+        
         try:
-            # Generate response with tool calling enabled
-            response = self.llm_client.generate_text(
-                messages=messages,
-                temperature=0.85,  # Higher temperature for more personality
-                max_tokens=300,
-                tools=[TIMER_TOOL],
-                tool_choice="auto"
-            )
+            # Only include tools if the message might be about a timer
+            # This prevents 400 errors when tools aren't needed
+            tools_to_use = [TIMER_TOOL] if might_be_timer else None
+            
+            # Generate response with conditional tool calling
+            # If it fails with tools, retry without tools as fallback
+            try:
+                response = self.llm_client.generate_text(
+                    messages=messages,
+                    temperature=0.85,  # Higher temperature for more personality
+                    max_tokens=300,
+                    tools=tools_to_use,
+                    tool_choice="auto" if might_be_timer else None
+                )
+            except Exception as tool_error:
+                # If tool calling fails, retry without tools as fallback
+                if tools_to_use and "400" in str(tool_error):
+                    print(f"[WARN] Tool calling failed, retrying without tools: {str(tool_error)}")
+                    response = self.llm_client.generate_text(
+                        messages=messages,
+                        temperature=0.85,
+                        max_tokens=300,
+                        tools=None,
+                        tool_choice=None
+                    )
+                else:
+                    # Re-raise if it's not a tool-related error or if we already tried without tools
+                    raise
             
             # Check if the model wants to call a tool
             tool_calls = response.get("tool_calls", [])

@@ -241,58 +241,69 @@ def parse_timer_request(message):
     - "timer 30 seconds" -> "00:30"
     - "1 hour timer" -> "60:00"
     """
-    message_lower = message.lower()
-    
-    # Check if message contains timer-related keywords
-    timer_keywords = ['timer', 'countdown', 'alarm']
-    if not any(keyword in message_lower for keyword in timer_keywords):
+    if not message or not isinstance(message, str):
         return None
     
-    # Patterns to match time durations (order matters - more specific patterns first)
-    # Match patterns like: "3 minutes", "5 min", "30 seconds", "1 hour", etc.
-    patterns = [
-        (r'(\d+)\s*(?:hour|hr|h)\s+(?:and\s+)?(\d+)\s*(?:minute|min|m)', 'hours_minutes'),
-        (r'(\d+)\s*(?:minute|min|m)\s+(?:and\s+)?(\d+)\s*(?:second|sec|s)', 'minutes_seconds'),
-        (r'(\d+)\s*(?:hour|hr|h)', 'hours_only'),
-        (r'(\d+)\s*(?:minute|min|m)', 'minutes_only'),
-        (r'(\d+)\s*(?:second|sec|s)', 'seconds_only'),
-    ]
-    
-    total_seconds = 0
-    
-    for pattern, pattern_type in patterns:
-        match = re.search(pattern, message_lower)
-        if match:
-            if pattern_type == 'hours_minutes':
-                hours = int(match.group(1))
-                minutes = int(match.group(2)) if match.group(2) else 0
-                total_seconds = hours * 3600 + minutes * 60
-                break
-            elif pattern_type == 'minutes_seconds':
-                minutes = int(match.group(1))
-                seconds = int(match.group(2)) if match.group(2) else 0
-                total_seconds = minutes * 60 + seconds
-                break
-            elif pattern_type == 'hours_only':
-                hours = int(match.group(1))
-                total_seconds = hours * 3600
-                break
-            elif pattern_type == 'minutes_only':
-                minutes = int(match.group(1))
-                total_seconds = minutes * 60
-                break
-            elif pattern_type == 'seconds_only':
-                total_seconds = int(match.group(1))
-                break
-    
-    if total_seconds == 0:
+    try:
+        message_lower = message.lower()
+        
+        # Check if message contains timer-related keywords
+        timer_keywords = ['timer', 'countdown', 'alarm']
+        if not any(keyword in message_lower for keyword in timer_keywords):
+            return None
+        
+        # Patterns to match time durations (order matters - more specific patterns first)
+        # Match patterns like: "3 minutes", "5 min", "30 seconds", "1 hour", etc.
+        patterns = [
+            (r'(\d+)\s*(?:hour|hr|h)\s+(?:and\s+)?(\d+)\s*(?:minute|min|m)', 'hours_minutes'),
+            (r'(\d+)\s*(?:minute|min|m)\s+(?:and\s+)?(\d+)\s*(?:second|sec|s)', 'minutes_seconds'),
+            (r'(\d+)\s*(?:hour|hr|h)', 'hours_only'),
+            (r'(\d+)\s*(?:minute|min|m)', 'minutes_only'),
+            (r'(\d+)\s*(?:second|sec|s)', 'seconds_only'),
+        ]
+        
+        total_seconds = 0
+        
+        for pattern, pattern_type in patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                try:
+                    if pattern_type == 'hours_minutes':
+                        hours = int(match.group(1))
+                        minutes = int(match.group(2)) if match.group(2) else 0
+                        total_seconds = hours * 3600 + minutes * 60
+                        break
+                    elif pattern_type == 'minutes_seconds':
+                        minutes = int(match.group(1))
+                        seconds = int(match.group(2)) if match.group(2) else 0
+                        total_seconds = minutes * 60 + seconds
+                        break
+                    elif pattern_type == 'hours_only':
+                        hours = int(match.group(1))
+                        total_seconds = hours * 3600
+                        break
+                    elif pattern_type == 'minutes_only':
+                        minutes = int(match.group(1))
+                        total_seconds = minutes * 60
+                        break
+                    elif pattern_type == 'seconds_only':
+                        total_seconds = int(match.group(1))
+                        break
+                except (ValueError, IndexError):
+                    # If parsing fails, continue to next pattern
+                    continue
+        
+        if total_seconds == 0:
+            return None
+        
+        # Convert to MM:SS format
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        
+        return f"{minutes:02d}:{seconds:02d}"
+    except Exception:
+        # Return None on any error to prevent breaking the chat flow
         return None
-    
-    # Convert to MM:SS format
-    minutes = total_seconds // 60
-    seconds = total_seconds % 60
-    
-    return f"{minutes:02d}:{seconds:02d}"
 
 
 @app.route('/chat', methods=['POST'])
@@ -360,8 +371,14 @@ def chat():
         # Process user input through assistant
         response = assistant.process_user_input(user_message)
         
-        # Check if the message is about a timer
-        timer_time = parse_timer_request(user_message)
+        # Check if the message is about a timer (safely, don't let errors break the response)
+        timer_time = None
+        try:
+            timer_time = parse_timer_request(user_message)
+        except Exception as e:
+            # If timer parsing fails, just continue without timer field
+            print(f"[WARN] Timer parsing failed: {str(e)}")
+            timer_time = None
         
         # Generate audio using ElevenLabs if available
         audio_data = None
