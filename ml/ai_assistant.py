@@ -122,8 +122,7 @@ CRITICAL: When a user wants to set a timer (e.g., "set a timer for 5 minutes", "
         # Check if this is a timer request (fallback if model doesn't detect it)
         timer_time = self._detect_timer_request(user_input)
         if timer_time:
-            # Directly call the timer function
-            from tools import set_timer
+            # Directly call the timer function (already imported at module level)
             result = set_timer(timer_time)
             if result.get("success"):
                 return f"Timer set for {result.get('time')}!"

@@ -240,6 +240,7 @@ def parse_timer_request(message):
     - "set timer for 5 min" -> "05:00"
     - "timer 30 seconds" -> "00:30"
     - "1 hour timer" -> "60:00"
+    - "five minute timer" -> "05:00"
     """
     if not message or not isinstance(message, str):
         return None
@@ -252,20 +253,34 @@ def parse_timer_request(message):
         if not any(keyword in message_lower for keyword in timer_keywords):
             return None
         
+        # Map spelled-out numbers to digits
+        word_to_num = {
+            'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+            'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+            'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
+            'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60
+        }
+        
+        # Replace spelled-out numbers with digits
+        temp_message = message_lower
+        for word, num in word_to_num.items():
+            temp_message = re.sub(r'\b' + word + r'\b', str(num), temp_message)
+        
         # Patterns to match time durations (order matters - more specific patterns first)
         # Match patterns like: "3 minutes", "5 min", "30 seconds", "1 hour", etc.
         patterns = [
-            (r'(\d+)\s*(?:hour|hr|h)\s+(?:and\s+)?(\d+)\s*(?:minute|min|m)', 'hours_minutes'),
-            (r'(\d+)\s*(?:minute|min|m)\s+(?:and\s+)?(\d+)\s*(?:second|sec|s)', 'minutes_seconds'),
-            (r'(\d+)\s*(?:hour|hr|h)', 'hours_only'),
-            (r'(\d+)\s*(?:minute|min|m)', 'minutes_only'),
-            (r'(\d+)\s*(?:second|sec|s)', 'seconds_only'),
+            (r'(\d+)\s*(?:hour|hr|h)s?\s+(?:and\s+)?(\d+)\s*(?:minute|min|m)s?', 'hours_minutes'),
+            (r'(\d+)\s*(?:minute|min|m)s?\s+(?:and\s+)?(\d+)\s*(?:second|sec|s)s?', 'minutes_seconds'),
+            (r'(\d+)\s*(?:hour|hr|h)s?', 'hours_only'),
+            (r'(\d+)\s*(?:minute|min|m)s?', 'minutes_only'),
+            (r'(\d+)\s*(?:second|sec|s)(?:econds?)?', 'seconds_only'),
         ]
         
         total_seconds = 0
         
         for pattern, pattern_type in patterns:
-            match = re.search(pattern, message_lower)
+            match = re.search(pattern, temp_message)
             if match:
                 try:
                     if pattern_type == 'hours_minutes':
@@ -527,8 +542,16 @@ def voice():
         user_message = transcribed_text.strip()
         response = assistant.process_user_input(user_message)
         
-        # Check if the message is about a timer
-        timer_time = parse_timer_request(user_message)
+        # Check if the message is about a timer (safely, don't let errors break the response)
+        timer_time = None
+        try:
+            print(f"[DEBUG] Checking for timer in voice message: '{user_message}'")
+            timer_time = parse_timer_request(user_message)
+            print(f"[DEBUG] Timer parsing result: {timer_time}")
+        except Exception as e:
+            # If timer parsing fails, just continue without timer field
+            print(f"[WARN] Timer parsing failed: {str(e)}")
+            timer_time = None
         
         # Generate audio using ElevenLabs if available
         audio_data = None

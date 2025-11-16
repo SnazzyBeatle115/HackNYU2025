@@ -401,6 +401,8 @@ function setupChatInput() {
 
             // Add bot response to chat log
             const botMessage = response?.response || response?.message || JSON.stringify(response);
+            console.log('Bot text response:', botMessage);
+            console.log('Full response object:', response);
             addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
 
             // Show typing animation in dialogue element
@@ -408,12 +410,12 @@ function setupChatInput() {
             if (dialogueElement) {
                 typeText(dialogueElement, botMessage, response?.audio);
             }
-            
+
             // Handle timer if present in response
             if (response?.time) {
                 startTimer(response.time);
             }
-            
+
             // Scroll to bottom of chat log
             chatLog.scrollTop = chatLog.scrollHeight;
 
@@ -637,28 +639,28 @@ function startTimer(timeString) {
         clearInterval(window.timerInterval);
         window.timerInterval = null;
     }
-    
+
     // Parse MM:SS format
     const parts = timeString.split(':');
     if (parts.length !== 2) {
         console.error('Invalid time format. Expected MM:SS, got:', timeString);
         return;
     }
-    
+
     let totalSeconds = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
-    
+
     if (isNaN(totalSeconds) || totalSeconds <= 0) {
         console.error('Invalid time value:', timeString);
         return;
     }
-    
+
     // Get timer display element
     const timerElement = document.querySelector('.timer p');
     if (!timerElement) {
         console.warn('Timer display element not found');
         return;
     }
-    
+
     // Update timer display immediately
     const updateDisplay = () => {
         const minutes = Math.floor(totalSeconds / 60);
@@ -666,22 +668,22 @@ function startTimer(timeString) {
         const displayTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         timerElement.textContent = displayTime;
     };
-    
+
     updateDisplay();
-    
+
     // Start countdown
     window.timerInterval = setInterval(() => {
         totalSeconds--;
-        
+
         if (totalSeconds < 0) {
             // Timer completed
             clearInterval(window.timerInterval);
             window.timerInterval = null;
             timerElement.textContent = '00:00';
-            
+
             // Show completion notification
             showNotification('Timer completed!', 'info');
-            
+
             // Optional: Play a sound or trigger an event
             console.log('Timer completed!');
         } else {
@@ -980,8 +982,8 @@ function blobToBase64WithoutPrefix(blob) {
  */
 async function sendAudioToBackend(base64Audio, format) {
     try {
-        // Send base64 audio as JSON to /api/voice endpoint
-        const response = await fetch('/api/voice', {
+        // Send base64 audio as JSON to /api/voice endpoint (Flask server forwards to ML server)
+        const response = await fetch('http://localhost:5000/api/voice', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -999,6 +1001,9 @@ async function sendAudioToBackend(base64Audio, format) {
 
         const result = await response.json();
         console.log('Audio clip sent successfully:', result);
+        console.log('Voice response - Bot message:', result?.response);
+        console.log('Voice response - Timer time:', result?.time);
+        console.log('Full voice response object:', result);
 
         // Get chat log element
         const chatLog = document.querySelector('.log');
@@ -1021,6 +1026,14 @@ async function sendAudioToBackend(base64Audio, format) {
         const dialogueElement = document.querySelector('.dialogue');
         if (dialogueElement) {
             typeText(dialogueElement, botMessage, result?.audio);
+        }
+
+        // Handle timer if present in response
+        if (result?.time) {
+            console.log('Starting timer from voice input with time:', result.time);
+            startTimer(result.time);
+        } else {
+            console.log('No timer time found in voice response');
         }
 
         // Scroll to bottom of chat log
