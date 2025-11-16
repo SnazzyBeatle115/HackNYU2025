@@ -5,13 +5,48 @@
 // Capture intervals are set from environment variables via template
 // These will be defined in the template script block before this file loads
 // Fallback values if not defined
-const TIME_INTERVAL_SCREEN_CAPTURE = window.TIME_INTERVAL_SCREEN_CAPTURE || 2000;
-const TIME_INTERVAL_CAMERA_CAPTURE = window.TIME_INTERVAL_CAMERA_CAPTURE || 2000;
+const TIME_INTERVAL_SCREEN_CAPTURE = globalThis.TIME_INTERVAL_SCREEN_CAPTURE || 2000;
+const TIME_INTERVAL_CAMERA_CAPTURE = globalThis.TIME_INTERVAL_CAMERA_CAPTURE || 2000;
+
+// Audio recording state (session-based model)
+let isListening = false;
+let currentMediaRecorder = null;
+let currentAudioChunks = [];
+let currentAudioStream = null;
+let audioAnalyser = null;
+let audioContext = null;
+let audioMonitorInterval = null;
+let recordingEnabled = false; // Master flag controlling recording behavior
+let lastToggleTs = 0;       // Debounce toggle clicks
+
+function isRecordingActive() {
+    return !!(currentMediaRecorder && currentMediaRecorder.state && currentMediaRecorder.state !== 'inactive');
+}
+
+// Adaptive speech control configuration
+const SPEECH_RMS_THRESHOLD = 0.01;        // Minimum RMS to treat as speech
+const SILENCE_MS_BEFORE_STOP = 1200;       // Stop after this long below threshold
+const MIN_RECORDING_MS = 500;              // Ignore recordings shorter than this
+const MAX_RECORDING_MS = 30000;            // Safety cap (30s) to avoid endless capture
+let lastAboveThresholdTime = 0;
+let recordingStartTime = 0;
+
+// Screen capture state
+let screenCaptureActive = false;
+let screenVideoElement = null;
+let screenCaptureInterval = null;
+let screenStream = null;
+
+// Camera capture state
+let cameraCaptureActive = false;
+let cameraVideoElement = null;
+let cameraCaptureInterval = null;
+let cameraStream = null;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Flask ML Web App loaded successfully');
-    
+
     // Add smooth scrolling for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
@@ -25,51 +60,116 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Attempt to start screen capture on page load.
-    (async () => {
-        try {
-            await startScreenCapture();
-            showNotification('Screen capture started', 'info');
-        } catch (err) {
-            console.warn('Screen capture start blocked or failed:', err);
-            showNotification('Screen capture could not be started automatically. Please click to start.', 'error');
-        }
-    })();
+    // Set up screen capture button
+    const screenButton = document.querySelector(".screen-btn");
+    if (screenButton) {
+        console.log('Binding direct handler for .screen-btn');
+        screenButton.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Screen capture button clicked (direct)');
+            // Start/stop screen capture (camera optional)
+            toggleScreenCapture();
+            toggleCameraCapture();
+        });
 
-    // Attempt to start camera capture on page load.
-    (async () => {
-        try {
-            await startCameraCapture();
-            showNotification('Camera capture started', 'info');
-        } catch (err) {
-            console.warn('Camera capture start blocked or failed:', err);
-            showNotification('Camera capture could not be started automatically. Please allow camera access.', 'error');
+    }
+
+    // Delegated handler as a fallback in case element is re-rendered
+    document.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest && e.target.closest('.screen-btn');
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Screen capture button clicked (delegated)');
+            toggleScreenCapture();
         }
-    })();
+    });
+
+    // // Set up camera capture button
+    // const cameraButton = document.querySelector(".camera-btn");
+    // if (cameraButton) {
+    //     cameraButton.addEventListener("click", toggleCameraCapture);
+    // }
 
     // Set up chat input handler
     setupChatInput();
 
     // Initialize dialogue element visibility
     // Note: The dialogue will be shown when typing starts and hidden when cleared
-    // handle record button press
-    document.querySelector(".character-img").addEventListener("click", () => {
-        console.log("Record button pressed");
-    });
+
+    // Handle record button press
+    const recordButton = document.querySelector(".character-img");
+    if (recordButton) {
+        recordButton.addEventListener("click", () => {
+            toggleAudioRecording();
+            // toggleCameraCapture();
+            // toggleScreenCapture();
+        });
+    }
 
 });
 
+/**
+ * Toggle screen capture on/off
+ */
+async function toggleScreenCapture() {
+    if (screenCaptureActive) {
+        stopScreenCapture();
+    } else {
+        await startScreenCapture();
+    }
+}
+
+/**
+ * Start screen capture
+ */
 async function startScreenCapture() {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true
-    });
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true
+        });
 
-    const videoEl = document.createElement("video");
-    videoEl.srcObject = stream;
-    await videoEl.play();
+        screenVideoElement = document.createElement("video");
+        screenVideoElement.srcObject = screenStream;
+        await screenVideoElement.play();
 
-    // Periodic screenshot
-    setInterval(() => captureScreenshot(videoEl), TIME_INTERVAL_SCREEN_CAPTURE);
+        // Periodic screenshot
+        screenCaptureInterval = setInterval(() => captureScreenshot(screenVideoElement), TIME_INTERVAL_SCREEN_CAPTURE);
+        screenCaptureActive = true;
+
+        console.log('Screen capture started');
+        showNotification('Screen capture started', 'info');
+    } catch (error) {
+        console.error('Error starting screen capture:', error);
+        showNotification('Failed to start screen capture: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Stop screen capture
+ */
+function stopScreenCapture() {
+    if (screenCaptureInterval) {
+        clearInterval(screenCaptureInterval);
+        screenCaptureInterval = null;
+    }
+
+    if (screenStream) {
+        for (const track of screenStream.getTracks()) {
+            track.stop();
+        }
+        screenStream = null;
+    }
+
+    if (screenVideoElement) {
+        screenVideoElement.srcObject = null;
+        screenVideoElement = null;
+    }
+
+    screenCaptureActive = false;
+    console.log('Screen capture stopped');
+    showNotification('Screen capture stopped', 'info');
 }
 
 function captureScreenshot(videoEl) {
@@ -85,35 +185,84 @@ function captureScreenshot(videoEl) {
     sendScreenshot(base64);
 }
 
+/**
+ * Toggle camera capture on/off
+ */
+async function toggleCameraCapture() {
+    if (cameraCaptureActive) {
+        stopCameraCapture();
+    } else {
+        await startCameraCapture();
+    }
+}
+
+/**
+ * Start camera capture
+ */
 async function startCameraCapture() {
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-            facingMode: 'user' // Use front-facing camera by default
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'user' // Use front-facing camera by default
+            }
+        });
+
+        cameraVideoElement = document.createElement("video");
+        cameraVideoElement.srcObject = cameraStream;
+        cameraVideoElement.autoplay = true;
+        cameraVideoElement.playsInline = true;
+        await cameraVideoElement.play();
+
+        // Optional: Add video element to page for preview (you can remove this if not needed)
+        cameraVideoElement.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 200px;
+            height: 150px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            z-index: 1000;
+            object-fit: cover;
+        `;
+        document.body.appendChild(cameraVideoElement);
+
+        // Capture picture every 2 seconds
+        cameraCaptureInterval = setInterval(() => captureCameraPicture(cameraVideoElement), TIME_INTERVAL_CAMERA_CAPTURE);
+        cameraCaptureActive = true;
+
+        console.log('Camera capture started');
+        showNotification('Camera capture started', 'info');
+    } catch (error) {
+        console.error('Error starting camera capture:', error);
+        showNotification('Failed to start camera capture: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Stop camera capture
+ */
+function stopCameraCapture() {
+    if (cameraCaptureInterval) {
+        clearInterval(cameraCaptureInterval);
+        cameraCaptureInterval = null;
+    }
+
+    if (cameraStream) {
+        for (const track of cameraStream.getTracks()) {
+            track.stop();
         }
-    });
+        cameraStream = null;
+    }
 
-    const videoEl = document.createElement("video");
-    videoEl.srcObject = stream;
-    videoEl.autoplay = true;
-    videoEl.playsInline = true;
-    await videoEl.play();
+    if (cameraVideoElement) {
+        cameraVideoElement.remove();
+        cameraVideoElement = null;
+    }
 
-    // Optional: Add video element to page for preview (you can remove this if not needed)
-    videoEl.style.cssText = `
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        width: 200px;
-        height: 150px;
-        border: 2px solid #333;
-        border-radius: 8px;
-        z-index: 1000;
-        object-fit: cover;
-    `;
-    document.body.appendChild(videoEl);
-
-    // Capture picture every 2 seconds
-    setInterval(() => captureCameraPicture(videoEl), TIME_INTERVAL_CAMERA_CAPTURE);
+    cameraCaptureActive = false;
+    console.log('Camera capture stopped');
+    showNotification('Camera capture stopped', 'info');
 }
 
 function captureCameraPicture(videoEl) {
@@ -172,14 +321,14 @@ async function apiCall(endpoint, method = 'GET', data = null) {
             'Content-Type': 'application/json',
         }
     };
-    
+
     if (data && method !== 'GET') {
         options.body = JSON.stringify(data);
     }
-    
+
     try {
         const response = await fetch(endpoint, options);
-        
+
         // Check if response is ok
         if (!response.ok) {
             const errorText = await response.text();
@@ -191,7 +340,7 @@ async function apiCall(endpoint, method = 'GET', data = null) {
             }
             throw new Error(errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         // Try to parse as JSON
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
@@ -220,40 +369,40 @@ function setupChatInput() {
     const inputField = document.querySelector('.input-text');
     const submitButton = document.querySelector('.submit-btn');
     const chatLog = document.querySelector('.log');
-    
+
     if (!inputField || !submitButton) {
         console.warn('Chat input elements not found');
         return;
     }
-    
+
     // Function to send message
     const sendMessage = async () => {
         const text = inputField.value.trim();
-        
+
         if (!text) {
             return; // Don't send empty messages
         }
-        
+
         // Add user message to chat log
         addMessageToChat(chatLog, `You: ${text}`, 'user');
-        
+
         // Clear input field
         inputField.value = '';
-        
+
         // Disable input while processing
         inputField.disabled = true;
         submitButton.disabled = true;
-        
+
         try {
             // Send to backend
             const response = await apiCall('/api/text', 'POST', {
                 text: text
             });
-            
+
             // Add bot response to chat log
             const botMessage = response?.response || response?.message || JSON.stringify(response);
             addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
-            
+
             // Show typing animation in dialogue element
             const dialogueElement = document.querySelector('.dialogue');
             if (dialogueElement) {
@@ -267,7 +416,7 @@ function setupChatInput() {
             
             // Scroll to bottom of chat log
             chatLog.scrollTop = chatLog.scrollHeight;
-            
+
         } catch (error) {
             console.error('Error sending message:', error);
             addMessageToChat(chatLog, `Bot: Error - ${error.message}`, 'error');
@@ -278,10 +427,10 @@ function setupChatInput() {
             inputField.focus();
         }
     };
-    
+
     // Handle submit button click
     submitButton.addEventListener('click', sendMessage);
-    
+
     // Handle Enter key press
     inputField.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -296,10 +445,10 @@ function setupChatInput() {
  */
 function addMessageToChat(chatLog, message, type = 'user') {
     if (!chatLog) return;
-    
+
     const messageElement = document.createElement('p');
     messageElement.textContent = message;
-    
+
     // Add styling based on message type
     if (type === 'user') {
         messageElement.style.color = '#007bff';
@@ -309,7 +458,7 @@ function addMessageToChat(chatLog, message, type = 'user') {
     } else {
         messageElement.style.color = '#28a745';
     }
-    
+
     chatLog.appendChild(messageElement);
 }
 
@@ -325,32 +474,49 @@ function typeText(element, text, audioData = null) {
         clearInterval(element.typingAnimation);
         element.typingAnimation = null;
     }
-    
+
     // Show the dialogue element
     element.style.display = 'block';
     element.style.opacity = '1';
     element.style.transition = '';
-    
+
     // Clear the element
     element.textContent = '';
-    
+
     let currentIndex = 0;
     const typingSpeed = 30; // milliseconds per character
-    
+
     // Start audio immediately (at the same time as typing)
     let audio = null;
     if (audioData) {
+        // Stop recording while audio is playing
+        const wasListening = isListening;
+        if (wasListening) {
+            stopListeningWindow();
+            console.log('Paused recording for audio playback');
+        }
+
         audio = playAudio(audioData);
         if (audio) {
-            // Clear dialogue when audio finishes
+            // Clear dialogue and resume recording when audio finishes
             audio.onended = () => {
                 console.log('Audio playback finished');
                 // Fade out and clear dialogue
                 fadeOutDialogue(element);
+
+                // Resume recording only if master flag is enabled
+                if (recordingEnabled) {
+                    setTimeout(() => {
+                        startAdaptiveRecording();
+                        console.log('Resumed recording after audio playback');
+                    }, 500); // Small delay after audio ends
+                } else {
+                    console.log('Not resuming recording (recordingEnabled:', recordingEnabled, ')');
+                }
             };
         }
     }
-    
+
     // Start typing animation
     element.typingAnimation = setInterval(() => {
         if (currentIndex < text.length) {
@@ -360,7 +526,7 @@ function typeText(element, text, audioData = null) {
             // Typing complete
             clearInterval(element.typingAnimation);
             element.typingAnimation = null;
-            
+
             // If no audio was available, clear after a delay
             if (!audio) {
                 setTimeout(() => fadeOutDialogue(element), 2000);
@@ -375,11 +541,11 @@ function typeText(element, text, audioData = null) {
  */
 function fadeOutDialogue(element) {
     if (!element) return;
-    
+
     // Add fade out animation
     element.style.transition = 'opacity 0.5s ease-out';
     element.style.opacity = '0';
-    
+
     // Clear text and hide element after fade
     setTimeout(() => {
         element.textContent = '';
@@ -402,11 +568,11 @@ function fadeOutDialogue(element) {
 function playAudio(audioData) {
     try {
         let audioUrl = null;
-        
+
         // Prefer data_url if available (already formatted correctly)
         if (audioData.data_url) {
             audioUrl = audioData.data_url;
-        } 
+        }
         // Otherwise, construct data URL from base64 data and format
         else if (audioData.data && audioData.format) {
             // Format: data:audio/{format};base64,{base64_data}
@@ -417,39 +583,44 @@ function playAudio(audioData) {
         else if (audioData.data) {
             audioUrl = audioData.data;
         }
-        
+
         if (!audioUrl) {
             console.warn('No audio data found in response:', audioData);
             return null;
         }
-        
+
         console.log('Playing audio with format:', audioData.format || 'unknown');
-        
+
         // Create audio element
         const audio = new Audio(audioUrl);
-        
+
         // Handle audio events
         audio.onloadstart = () => {
             console.log('Audio loading started');
         };
-        
+
         audio.oncanplay = () => {
             console.log('Audio ready to play');
         };
-        
+
         audio.onerror = (error) => {
             console.error('Error playing audio:', error);
         };
-        
+
+        // Stop recording before playing audio
+        audio.onplay = () => {
+            console.log('Audio playback started');
+        };
+
         // Play the audio
         audio.play().catch(error => {
             console.error('Failed to play audio:', error);
             // Some browsers require user interaction before playing audio
             // This is expected behavior for autoplay policies
         });
-        
+
         return audio;
-        
+
     } catch (error) {
         console.error('Error processing audio:', error);
         return null;
@@ -520,6 +691,369 @@ function startTimer(timeString) {
 }
 
 /**
+ * Toggle audio recording on/off
+ * Now uses session-based recording (one complete WebM file per window)
+ */
+async function toggleAudioRecording() {
+    // Debounce rapid double clicks
+    const now = Date.now();
+    if (now - lastToggleTs < 300) {
+        console.log('Toggle ignored (debounced)');
+        return;
+    }
+    lastToggleTs = now;
+
+    // Flip master control
+    recordingEnabled = !recordingEnabled;
+
+    if (!recordingEnabled) {
+        // Disable and stop any active recording
+        if (isListening || isRecordingActive()) {
+            isListening = false; // prevent re-entrancy
+            stopAdaptiveRecording();
+        }
+        console.log('Recording disabled');
+        return;
+    }
+
+    // Enabled: start if not already active
+    if (!isRecordingActive() && !isListening) {
+        await startAdaptiveRecording();
+    } else {
+        console.log('Recording already active (enabled)');
+    }
+}
+
+/**
+ * Start a listening window - records one complete audio session
+ * @param {number} durationMs - Duration of the listening window in milliseconds (default 6000)
+ */
+async function startListeningWindow(durationMs = 6000) {
+    try {
+        console.log('Audio listening window started for', durationMs, 'ms');
+        showNotification('Recording started', 'info');
+
+        // Request microphone access
+        currentAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        currentAudioChunks = [];
+
+        // Create MediaRecorder for audio/webm format
+        const options = { mimeType: 'audio/webm' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            console.warn('audio/webm not supported, using default format');
+            currentMediaRecorder = new MediaRecorder(currentAudioStream);
+        } else {
+            currentMediaRecorder = new MediaRecorder(currentAudioStream, options);
+        }
+
+        // Accumulate all data chunks
+        currentMediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                currentAudioChunks.push(event.data);
+            }
+        };
+
+        // Handle recording stop - upload complete audio file
+        currentMediaRecorder.onstop = async () => {
+            try {
+                const blob = new Blob(currentAudioChunks, { type: 'audio/webm' });
+                console.log('Audio listening window stopped, blob size:', blob.size);
+
+                // Basic guard: ignore extremely tiny blobs
+                if (blob.size < 2000) {
+                    console.log('Ignoring tiny audio blob');
+                    return;
+                }
+
+                const base64 = await blobToBase64WithoutPrefix(blob);
+                console.log('Uploading full audio clip to /api/voice, size:', blob.size);
+
+                await sendAudioToBackend(base64, 'audio/webm');
+            } catch (err) {
+                console.error('Error handling recorded audio:', err);
+                showNotification('Failed to process audio: ' + err.message, 'error');
+            } finally {
+                // Stop tracks so mic is released
+                if (currentAudioStream) {
+                    currentAudioStream.getTracks().forEach((track) => track.stop());
+                    currentAudioStream = null;
+                }
+                isListening = false;
+                showNotification('Recording stopped', 'info');
+            }
+        };
+
+        // Start recording (no timeslice - record continuously)
+        currentMediaRecorder.start();
+        isListening = true;
+
+        // Automatically stop after duration
+        setTimeout(() => {
+            if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+                currentMediaRecorder.stop();
+            }
+        }, durationMs);
+
+    } catch (error) {
+        console.error('Error starting listening window:', error);
+        showNotification('Failed to start recording: ' + error.message, 'error');
+        isListening = false;
+    }
+}
+
+/**
+ * Stop the current listening window
+ */
+function stopListeningWindow() {
+    if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+        currentMediaRecorder.stop();
+        console.log('Manually stopping listening window');
+    }
+}
+
+/**
+ * Start adaptive recording: captures while RMS above threshold, stops after silence.
+ */
+async function startAdaptiveRecording() {
+    try {
+        // Respect master control flag
+        if (!recordingEnabled) {
+            console.log('Recording disabled; start ignored');
+            return;
+        }
+        // Prevent starting if already active
+        if (isListening || isRecordingActive()) {
+            console.log('Recording already active; start ignored');
+            return;
+        }
+
+        console.log('Adaptive audio recording started');
+        showNotification('Listening...', 'info');
+        currentAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        currentAudioChunks = [];
+        const options = { mimeType: 'audio/webm' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            console.warn('audio/webm not supported, using default');
+            currentMediaRecorder = new MediaRecorder(currentAudioStream);
+        } else {
+            currentMediaRecorder = new MediaRecorder(currentAudioStream, options);
+        }
+
+        // Setup audio context & analyser for RMS
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const srcNode = audioContext.createMediaStreamSource(currentAudioStream);
+        audioAnalyser = audioContext.createAnalyser();
+        audioAnalyser.fftSize = 2048;
+        srcNode.connect(audioAnalyser);
+
+        lastAboveThresholdTime = Date.now();
+        recordingStartTime = Date.now();
+
+        currentMediaRecorder.ondataavailable = e => {
+            if (e.data && e.data.size > 0) {
+                currentAudioChunks.push(e.data);
+            }
+        };
+
+        currentMediaRecorder.onstop = async () => {
+            cleanupAudioMonitoring();
+            try {
+                const elapsed = Date.now() - recordingStartTime;
+                const blob = new Blob(currentAudioChunks, { type: 'audio/webm' });
+                console.log('Adaptive recording stopped; duration:', elapsed, 'ms; blob size:', blob.size);
+                if (elapsed < MIN_RECORDING_MS || blob.size < 2000) {
+                    console.log('Ignoring too-short / tiny recording');
+                    return;
+                }
+                const base64 = await blobToBase64WithoutPrefix(blob);
+                console.log('Uploading full adaptive audio clip to /api/voice, size:', blob.size);
+                await sendAudioToBackend(base64, 'audio/webm');
+            } catch (err) {
+                console.error('Error handling adaptive audio:', err);
+                showNotification('Audio error: ' + err.message, 'error');
+            } finally {
+                if (currentAudioStream) {
+                    currentAudioStream.getTracks().forEach(t => t.stop());
+                    currentAudioStream = null;
+                }
+                isListening = false;
+                showNotification('Stopped listening', 'info');
+            }
+        };
+
+        currentMediaRecorder.start();
+        isListening = true;
+        // Ensure any previous monitor is cleared
+        if (audioMonitorInterval) {
+            clearInterval(audioMonitorInterval);
+            audioMonitorInterval = null;
+        }
+        audioMonitorInterval = setInterval(monitorSpeechRMS, 150); // check ~6.6x per second
+
+        // Safety cap timeout
+        setTimeout(() => {
+            if (isListening && currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+                console.log('Max recording duration reached, stopping.');
+                currentMediaRecorder.stop();
+            }
+        }, MAX_RECORDING_MS);
+    } catch (err) {
+        console.error('Failed to start adaptive recording:', err);
+        showNotification('Failed to start listening: ' + err.message, 'error');
+    }
+}
+
+function monitorSpeechRMS() {
+    if (!audioAnalyser || !isListening) return;
+    // If master control disabled mid-stream, stop gracefully
+    if (!recordingEnabled) {
+        if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+            console.log('Recording disabled during monitor; stopping recorder');
+            currentMediaRecorder.stop();
+        }
+        return;
+    }
+    const len = audioAnalyser.fftSize;
+    const data = new Float32Array(len);
+    audioAnalyser.getFloatTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += data[i] * data[i];
+    const rms = Math.sqrt(sum / len);
+
+    const now = Date.now();
+    if (rms >= SPEECH_RMS_THRESHOLD) {
+        lastAboveThresholdTime = now;
+    }
+
+    // Stop after sufficient silence
+    if (now - lastAboveThresholdTime > SILENCE_MS_BEFORE_STOP && currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+        const activeMs = now - recordingStartTime;
+        if (activeMs >= MIN_RECORDING_MS) {
+            console.log('Silence detected for', (now - lastAboveThresholdTime), 'ms; stopping recording. Last RMS:', rms.toFixed(4));
+            currentMediaRecorder.stop();
+        }
+    }
+}
+
+function cleanupAudioMonitoring() {
+    if (audioMonitorInterval) {
+        clearInterval(audioMonitorInterval);
+        audioMonitorInterval = null;
+    }
+    if (audioContext) {
+        audioContext.close().catch(() => { });
+        audioContext = null;
+    }
+    audioAnalyser = null;
+}
+
+function stopAdaptiveRecording() {
+    if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+        console.log('Manual stop requested for adaptive recording');
+        currentMediaRecorder.stop();
+    }
+}
+
+/**
+ * Convert Blob to base64 string without data URL prefix
+ * @param {Blob} blob - Blob to convert
+ * @returns {Promise<string>} Base64 string without prefix
+ */
+function blobToBase64WithoutPrefix(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = String(reader.result || '');
+            const parts = dataUrl.split(',');
+            const base64 = parts.length > 1 ? parts[1] : '';
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+/**
+ * Send complete audio recording to backend
+ * @param {string} base64Audio - Base64 encoded audio data (without prefix)
+ * @param {string} format - Audio format (e.g., 'audio/webm')
+ */
+async function sendAudioToBackend(base64Audio, format) {
+    try {
+        // Send base64 audio as JSON to /api/voice endpoint
+        const response = await fetch('/api/voice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                audio: base64Audio,
+                format: format
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log('Audio clip sent successfully:', result);
+
+        // Get chat log element
+        const chatLog = document.querySelector('.log');
+        if (!chatLog) {
+            console.warn('Chat log element not found');
+            return;
+        }
+
+        // Add transcribed user message to chat log
+        const transcription = result?.transcription || 'Voice input';
+        if (transcription) {
+            addMessageToChat(chatLog, `You: ${transcription}`, 'user');
+        }
+
+        // Add bot response to chat log
+        const botMessage = result?.response || result?.message || JSON.stringify(result);
+        addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
+
+        // Show typing animation in dialogue element and play audio
+        const dialogueElement = document.querySelector('.dialogue');
+        if (dialogueElement) {
+            typeText(dialogueElement, botMessage, result?.audio);
+        }
+
+        // Scroll to bottom of chat log
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+    } catch (error) {
+        console.error('Error sending audio to backend:', error);
+        // Show error in chat if possible
+        const chatLog = document.querySelector('.log');
+        if (chatLog) {
+            addMessageToChat(chatLog, `Bot: Error - ${error.message}`, 'error');
+        }
+        throw error;
+    }
+}
+
+/**
+ * Convert base64 string to Blob
+ * @param {string} base64 - Base64 encoded string
+ * @param {string} mimeType - MIME type
+ * @returns {Blob} Blob object
+ */
+function base64ToBlob(base64, mimeType) {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: mimeType });
+}
+
+/**
  * Show notification message
  */
 function showNotification(message, type = 'info') {
@@ -538,9 +1072,9 @@ function showNotification(message, type = 'info') {
         z-index: 1000;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     setTimeout(() => {
         notification.remove();
     }, 3000);

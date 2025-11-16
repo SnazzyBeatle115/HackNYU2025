@@ -433,6 +433,157 @@ def chat():
         }), 500
 
 
+@app.route('/voice', methods=['POST'])
+def voice():
+    """
+    Voice input endpoint - receives audio, transcribes it, and processes through chat
+    
+    Expected JSON payload:
+    {
+        "audio": "base64_encoded_audio_string",
+        "format": "audio/webm"  // Optional
+    }
+    
+    Returns:
+    {
+        "response": "assistant response",
+        "status": "success",
+        "transcription": "transcribed user speech",
+        "audio": {
+            "data": "base64_encoded_audio",
+            "format": "mp3",
+            "data_url": "data:audio/mpeg;base64,..."
+        }
+    }
+    """
+    global assistant, elevenlabs_client
+    
+    # Initialize assistant if not already done
+    if assistant is None:
+        try:
+            init_assistant()
+        except Exception as e:
+            return jsonify({
+                "error": f"Failed to initialize assistant: {str(e)}",
+                "status": "error"
+            }), 500
+    
+    # Check if assistant is active
+    if not assistant.is_active:
+        try:
+            assistant.start()
+        except Exception as e:
+            return jsonify({
+                "error": f"Failed to start assistant: {str(e)}",
+                "status": "error"
+            }), 500
+    
+    # Get audio from request
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "error": "No JSON data provided",
+                "status": "error"
+            }), 400
+        
+        audio_base64 = data.get('audio', '').strip()
+        audio_format = data.get('format', 'audio/webm')
+        
+        if not audio_base64:
+            return jsonify({
+                "error": "Audio field is required and cannot be empty",
+                "status": "error"
+            }), 400
+        
+        # Transcribe audio using ElevenLabs
+        transcribed_text = None
+        if elevenlabs_client:
+            try:
+                print(f"Transcribing audio: format={audio_format}, base64_length={len(audio_base64)}")
+                transcribed_text = elevenlabs_client.speech_to_text(audio_base64, audio_format)
+                print(f"Transcription: {transcribed_text}")
+            except Exception as e:
+                print(f"Failed to transcribe audio: {str(e)}")
+                return jsonify({
+                    "error": f"Failed to transcribe audio: {str(e)}",
+                    "status": "error"
+                }), 500
+        else:
+            return jsonify({
+                "error": "ElevenLabs client not initialized. Speech-to-text requires ElevenLabs API key.",
+                "status": "error"
+            }), 500
+        
+        if not transcribed_text or not transcribed_text.strip():
+            return jsonify({
+                "error": "Transcription resulted in empty text",
+                "status": "error"
+            }), 400
+        
+        # Process transcribed text through chat
+        # Call the chat function directly instead of making HTTP request
+        user_message = transcribed_text.strip()
+        response = assistant.process_user_input(user_message)
+        
+        # Check if the message is about a timer
+        timer_time = parse_timer_request(user_message)
+        
+        # Generate audio using ElevenLabs if available
+        audio_data = None
+        if elevenlabs_client and response:
+            try:
+                # Generate audio from assistant's response
+                audio_result = elevenlabs_client.text_to_speech(
+                    text=response,
+                    stability=0.5,
+                    similarity_boost=0.75,
+                    style=0.2,
+                    use_speaker_boost=True
+                )
+                audio_data = {
+                    "data": audio_result["audio_base64"],
+                    "format": audio_result["format"],
+                    "data_url": f"data:audio/{audio_result['format']};base64,{audio_result['audio_base64']}"
+                }
+                # Save audio file for debugging (backend only)
+                try:
+                    saved_path = elevenlabs_client.save_audio(
+                        audio_data=audio_result.get("audio_data"),
+                        text=response,
+                        output_dir="audio_output"
+                    )
+                    print(f"Saved audio: {saved_path}")
+                except Exception as save_error:
+                    print(f"Failed to save audio: {str(save_error)}")
+            except Exception as e:
+                # If audio generation fails, still return text response
+                print(f"Failed to generate audio: {str(e)}")
+                audio_data = None
+        
+        # Return response with transcription, text response, and optional audio
+        result = {
+            "response": response,
+            "transcription": transcribed_text,
+            "status": "success"
+        }
+        
+        if audio_data:
+            result["audio"] = audio_data
+        
+        if timer_time:
+            result["time"] = timer_time
+        
+        return jsonify(result), 200
+    
+    except Exception as e:
+        return jsonify({
+            "error": f"Error processing voice input: {str(e)}",
+            "status": "error"
+        }), 500
+
+
 @app.route('/reset', methods=['POST'])
 def reset():
     """
