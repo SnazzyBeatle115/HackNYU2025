@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set up chat input handler
     setupChatInput();
 
+    // Initialize dialogue element visibility
+    // Note: The dialogue will be shown when typing starts and hidden when cleared
+
 });
 
 async function startScreenCapture() {
@@ -245,9 +248,10 @@ function setupChatInput() {
             const botMessage = response?.response || response?.message || JSON.stringify(response);
             addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
             
-            // Play audio if available
-            if (response?.audio) {
-                playAudio(response.audio);
+            // Show typing animation in dialogue element
+            const dialogueElement = document.querySelector('.dialogue');
+            if (dialogueElement) {
+                typeText(dialogueElement, botMessage, response?.audio);
             }
             
             // Scroll to bottom of chat log
@@ -299,6 +303,82 @@ function addMessageToChat(chatLog, message, type = 'user') {
 }
 
 /**
+ * Type text with animation in the dialogue element
+ * @param {HTMLElement} element - The dialogue element to update
+ * @param {string} text - The text to type
+ * @param {Object} audioData - Optional audio data to play
+ */
+function typeText(element, text, audioData = null) {
+    // Clear any existing typing animation
+    if (element.typingAnimation) {
+        clearInterval(element.typingAnimation);
+        element.typingAnimation = null;
+    }
+    
+    // Show the dialogue element
+    element.style.display = 'block';
+    element.style.opacity = '1';
+    element.style.transition = '';
+    
+    // Clear the element
+    element.textContent = '';
+    
+    let currentIndex = 0;
+    const typingSpeed = 30; // milliseconds per character
+    
+    // Start audio immediately (at the same time as typing)
+    let audio = null;
+    if (audioData) {
+        audio = playAudio(audioData);
+        if (audio) {
+            // Clear dialogue when audio finishes
+            audio.onended = () => {
+                console.log('Audio playback finished');
+                // Fade out and clear dialogue
+                fadeOutDialogue(element);
+            };
+        }
+    }
+    
+    // Start typing animation
+    element.typingAnimation = setInterval(() => {
+        if (currentIndex < text.length) {
+            element.textContent = text.substring(0, currentIndex + 1);
+            currentIndex++;
+        } else {
+            // Typing complete
+            clearInterval(element.typingAnimation);
+            element.typingAnimation = null;
+            
+            // If no audio was available, clear after a delay
+            if (!audio) {
+                setTimeout(() => fadeOutDialogue(element), 2000);
+            }
+            // If audio is playing, it will handle clearing when it finishes
+        }
+    }, typingSpeed);
+}
+
+/**
+ * Fade out and clear the dialogue element, then hide it
+ */
+function fadeOutDialogue(element) {
+    if (!element) return;
+    
+    // Add fade out animation
+    element.style.transition = 'opacity 0.5s ease-out';
+    element.style.opacity = '0';
+    
+    // Clear text and hide element after fade
+    setTimeout(() => {
+        element.textContent = '';
+        element.style.display = 'none'; // Hide the element
+        element.style.opacity = '1'; // Reset for next time
+        element.style.transition = '';
+    }, 500);
+}
+
+/**
  * Play audio from response
  * Expects audio data in the format from api_server.py:
  * {
@@ -306,6 +386,7 @@ function addMessageToChat(chatLog, message, type = 'user') {
  *   "format": "mp3",
  *   "data_url": "data:audio/mpeg;base64,..."
  * }
+ * @returns {HTMLAudioElement|null} The audio element if created, null otherwise
  */
 function playAudio(audioData) {
     try {
@@ -328,7 +409,7 @@ function playAudio(audioData) {
         
         if (!audioUrl) {
             console.warn('No audio data found in response:', audioData);
-            return;
+            return null;
         }
         
         console.log('Playing audio with format:', audioData.format || 'unknown');
@@ -349,10 +430,6 @@ function playAudio(audioData) {
             console.error('Error playing audio:', error);
         };
         
-        audio.onended = () => {
-            console.log('Audio playback finished');
-        };
-        
         // Play the audio
         audio.play().catch(error => {
             console.error('Failed to play audio:', error);
@@ -360,8 +437,11 @@ function playAudio(audioData) {
             // This is expected behavior for autoplay policies
         });
         
+        return audio;
+        
     } catch (error) {
         console.error('Error processing audio:', error);
+        return null;
     }
 }
 
