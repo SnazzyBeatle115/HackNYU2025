@@ -525,10 +525,10 @@ if __name__ == '__main__':
     # to avoid colliding with the Flask port. When running with the
     # Werkzeug reloader, the parent process spawns a child; we only want to
     # start the ML server in the child process (when WERKZEUG_RUN_MAIN == 'true')
-    flask_port = 8080
+    flask_port = int(os.environ.get('PORT', '5000'))
     ml_port = 8081
 
     
-    start_ml_api_server(port=ml_port)
+    # start_ml_api_server(port=ml_port)
 
     app.run(debug=debug_mode, host='0.0.0.0', port=flask_port)
