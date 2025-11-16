@@ -49,6 +49,42 @@ ML_SERVER_URL = os.environ.get('ML_SERVER_URL', 'http://localhost:8081')
 import json
 import urllib.request
 
+# Try to import requests for better HTTP handling
+try:
+    import requests
+except ImportError:
+    requests = None
+    print("Warning: requests library not available. Using urllib fallback.")
+
+
+def warmup_ml_server():
+    """
+    Send a warmup request to the ML server to wake it up and avoid cold start delays.
+    This is called when Flask starts up.
+    """
+    warmup_url = ML_SERVER_URL.rstrip('/') + '/chat'
+    warmup_payload = {'message': 'warmup'}
+    
+    print(f"[WARMUP] Sending warmup request to ML server at {warmup_url}...")
+    
+    try:
+        if requests:
+            response = requests.post(warmup_url, json=warmup_payload, timeout=30)
+            if response.status_code == 200:
+                print(f"[WARMUP] ML server responded successfully (status {response.status_code})")
+            else:
+                print(f"[WARMUP] ML server responded with status {response.status_code}")
+        else:
+            # Fallback to urllib
+            body = json.dumps(warmup_payload).encode()
+            req = urllib.request.Request(warmup_url, data=body, headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                print(f"[WARMUP] ML server responded successfully (status {response.status})")
+    except Exception as e:
+        print(f"[WARMUP] Failed to warm up ML server: {e}")
+        print("[WARMUP] ML server will be started on first user request")
+
+
 # Prefer `requests` if available for simpler multipart uploads; fall back to urllib
 try:
     import requests
@@ -530,5 +566,10 @@ if __name__ == '__main__':
 
     
     # start_ml_api_server(port=ml_port)
+    
+    # Send warmup request to ML server (in background thread to not block startup)
+    import threading
+    warmup_thread = threading.Thread(target=warmup_ml_server, daemon=True)
+    warmup_thread.start()
 
     app.run(debug=debug_mode, host='0.0.0.0', port=flask_port)
