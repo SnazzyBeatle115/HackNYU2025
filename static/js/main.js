@@ -672,7 +672,7 @@ function startTimer(timeString) {
     updateDisplay();
 
     // Start countdown
-    window.timerInterval = setInterval(() => {
+    window.timerInterval = setInterval(async () => {
         totalSeconds--;
 
         if (totalSeconds < 0) {
@@ -686,6 +686,39 @@ function startTimer(timeString) {
 
             // Optional: Play a sound or trigger an event
             console.log('Timer completed!');
+
+            const chatLog = document.querySelector('.log');
+            if (!chatLog) {
+                console.warn('Chat log element not found');
+                return;
+            }
+
+            // timer ran out
+            const response = await apiCall('/api/text', 'POST', {
+                text: "The timer has run out!"
+            });
+
+            // Add bot response to chat log
+            const botMessage = response?.response || response?.message || JSON.stringify(response);
+            console.log('Bot text response:', botMessage);
+            console.log('Full response object:', response);
+            addMessageToChat(chatLog, `Bot: ${botMessage}`, 'bot');
+
+            // Show typing animation in dialogue element
+            const dialogueElement = document.querySelector('.dialogue');
+            if (dialogueElement) {
+                typeText(dialogueElement, botMessage, response?.audio);
+            }
+
+            // Handle timer if present in response
+            if (response?.time) {
+                startTimer(response.time);
+            }
+
+            // Scroll to bottom of chat log
+            chatLog.scrollTop = chatLog.scrollHeight;
+
+
         } else {
             updateDisplay();
         }
