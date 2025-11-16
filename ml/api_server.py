@@ -5,6 +5,7 @@ Supports both HTTP API server and CLI interactive modes
 import os
 import sys
 import argparse
+import re
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -229,6 +230,71 @@ def welcome():
     return jsonify(result), 200
 
 
+def parse_timer_request(message):
+    """
+    Detect if the message is about a timer and extract the time duration.
+    Returns time in MM:SS format if timer is detected, None otherwise.
+    
+    Examples:
+    - "i want a timer of 3 minutes" -> "03:00"
+    - "set timer for 5 min" -> "05:00"
+    - "timer 30 seconds" -> "00:30"
+    - "1 hour timer" -> "60:00"
+    """
+    message_lower = message.lower()
+    
+    # Check if message contains timer-related keywords
+    timer_keywords = ['timer', 'countdown', 'alarm']
+    if not any(keyword in message_lower for keyword in timer_keywords):
+        return None
+    
+    # Patterns to match time durations (order matters - more specific patterns first)
+    # Match patterns like: "3 minutes", "5 min", "30 seconds", "1 hour", etc.
+    patterns = [
+        (r'(\d+)\s*(?:hour|hr|h)\s+(?:and\s+)?(\d+)\s*(?:minute|min|m)', 'hours_minutes'),
+        (r'(\d+)\s*(?:minute|min|m)\s+(?:and\s+)?(\d+)\s*(?:second|sec|s)', 'minutes_seconds'),
+        (r'(\d+)\s*(?:hour|hr|h)', 'hours_only'),
+        (r'(\d+)\s*(?:minute|min|m)', 'minutes_only'),
+        (r'(\d+)\s*(?:second|sec|s)', 'seconds_only'),
+    ]
+    
+    total_seconds = 0
+    
+    for pattern, pattern_type in patterns:
+        match = re.search(pattern, message_lower)
+        if match:
+            if pattern_type == 'hours_minutes':
+                hours = int(match.group(1))
+                minutes = int(match.group(2)) if match.group(2) else 0
+                total_seconds = hours * 3600 + minutes * 60
+                break
+            elif pattern_type == 'minutes_seconds':
+                minutes = int(match.group(1))
+                seconds = int(match.group(2)) if match.group(2) else 0
+                total_seconds = minutes * 60 + seconds
+                break
+            elif pattern_type == 'hours_only':
+                hours = int(match.group(1))
+                total_seconds = hours * 3600
+                break
+            elif pattern_type == 'minutes_only':
+                minutes = int(match.group(1))
+                total_seconds = minutes * 60
+                break
+            elif pattern_type == 'seconds_only':
+                total_seconds = int(match.group(1))
+                break
+    
+    if total_seconds == 0:
+        return None
+    
+    # Convert to MM:SS format
+    minutes = total_seconds // 60
+    seconds = total_seconds % 60
+    
+    return f"{minutes:02d}:{seconds:02d}"
+
+
 @app.route('/chat', methods=['POST'])
 def chat():
     """
@@ -247,7 +313,8 @@ def chat():
             "data": "base64_encoded_audio",
             "format": "mp3",
             "data_url": "data:audio/mpeg;base64,..."
-        }  // Optional - only included if ElevenLabs is configured
+        },  // Optional - only included if ElevenLabs is configured
+        "time": "MM:SS"  // Optional - only included if message is about a timer (e.g., "i want a timer of 3 minutes")
     }
     """
     global assistant, elevenlabs_client
@@ -293,6 +360,9 @@ def chat():
         # Process user input through assistant
         response = assistant.process_user_input(user_message)
         
+        # Check if the message is about a timer
+        timer_time = parse_timer_request(user_message)
+        
         # Generate audio using ElevenLabs if available
         audio_data = None
         if elevenlabs_client and response:
@@ -325,7 +395,7 @@ def chat():
                 print(f"Failed to generate audio: {str(e)}")
                 audio_data = None
         
-        # Return response with optional audio
+        # Return response with optional audio and timer time
         result = {
             "response": response,
             "status": "success"
@@ -333,6 +403,9 @@ def chat():
         
         if audio_data:
             result["audio"] = audio_data
+        
+        if timer_time:
+            result["time"] = timer_time
         
         return jsonify(result), 200
     
