@@ -50,6 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize dialogue element visibility
     // Note: The dialogue will be shown when typing starts and hidden when cleared
+    // handle record button press
+    document.querySelector(".character-img").addEventListener("click", () => {
+        E
+    });
 
 });
 

@@ -35,7 +35,7 @@ def image_to_base64(image_path: str) -> str:
     return base64_string
 
 
-def test_detectcamera_endpoint(image_path: str, endpoint_url: str = "http://localhost:5000/detectcamera"):
+def test_detectcamera_endpoint(image_path: str, endpoint_url: str = "http://localhost:8081/detectcamera"):
     """
     Test the /detectcamera endpoint by sending an image and displaying the LLM analysis.
     
@@ -93,7 +93,7 @@ def test_detectcamera_endpoint(image_path: str, endpoint_url: str = "http://loca
         return 1
 
 
-def test_detectscreen_endpoint(image_path: str, endpoint_url: str = "http://localhost:5000/detectscreen"):
+def test_detectscreen_endpoint(image_path: str, endpoint_url: str = "http://localhost:8081/detectscreen"):
     """
     Test the /detectscreen endpoint by sending an image and displaying the LLM analysis.
     
@@ -191,10 +191,10 @@ Examples:
     
     # Set endpoint URL
     if args.camera:
-        endpoint_url = args.url or "http://localhost:5000/detectcamera"
+        endpoint_url = args.url or "http://localhost:8081/detectcamera"
         return test_detectcamera_endpoint(args.image, endpoint_url)
     else:  # args.screen
-        endpoint_url = args.url or "http://localhost:5000/detectscreen"
+        endpoint_url = args.url or "http://localhost:8081/detectscreen"
         return test_detectscreen_endpoint(args.image, endpoint_url)
 
 
