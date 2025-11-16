@@ -11,6 +11,14 @@ import sys
 import atexit
 from flask import Flask, render_template, request, jsonify, Blueprint
 
+# Try to import flask_cors for CORS support
+try:
+    from flask_cors import CORS
+    cors_available = True
+except ImportError:
+    cors_available = False
+    print("Warning: flask-cors not available. CORS may cause issues.")
+
 # Safe fallback for predict if ML model module isn't present
 try:
     from ml.model import predict
@@ -23,6 +31,10 @@ except Exception:
         }
 
 app = Flask(__name__)
+
+# Enable CORS if available
+if cors_available:
+    CORS(app)
 
 # API blueprint: group API routes under `/api` prefix
 api = Blueprint('api', __name__, url_prefix='/api')
@@ -157,6 +169,57 @@ def screen_input():
 
         # Forward to ML server's /detectscreen endpoint
         ml_resp = forward_to_ml(payload, endpoint='/detectscreen')
+
+        # If ML server returned an error, return the error
+        if isinstance(ml_resp, dict) and ml_resp.get('error'):
+            # Log ML server error body to console for debugging
+            try:
+                print("ML server error:", ml_resp.get('error'))
+                if ml_resp.get('body'):
+                    print("ML server error body:", ml_resp.get('body'))
+            except Exception:
+                pass
+            resp = ml_resp.copy()
+        else:
+            # ML returned a successful JSON response — return it directly so
+            # the client gets fields like text_extracted, activity_detected, etc.
+            if isinstance(ml_resp, dict):
+                resp = ml_resp.copy()
+            else:
+                resp = {'ml_response': ml_resp}
+
+        if saved:
+            resp['saved_path'] = saved
+
+        return jsonify(resp)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api.route('/camera', methods=['POST'])
+def camera_input():
+    """Accept camera input (image file or JSON/base64) and forward to ML model."""
+    try:
+        # multipart/form-data upload with field 'file'
+        if request.files and 'file' in request.files:
+            f = request.files['file']
+            content = f.read()
+            payload = {'input_type': 'camera', 'filename': f.filename, 'file_bytes': content}
+        else:
+            data = request.get_json(silent=True) or {}
+            b64 = data.get('camera') or data.get('data')
+            if not b64:
+                return jsonify({'success': False, 'error': 'No camera data provided'}), 400
+            # Accept full data URL or raw base64 string; store raw base64 in payload
+            if isinstance(b64, str) and b64.startswith('data:'):
+                b64 = b64.split(',', 1)[1]
+            payload = {'input_type': 'camera', 'data': b64}
+
+        # Save temporary copy for debugging
+        saved = save_temp_file(payload)
+
+        # Forward to ML server's /detectcamera endpoint
+        ml_resp = forward_to_ml(payload, endpoint='/detectcamera')
 
         # If ML server returned an error, return the error
         if isinstance(ml_resp, dict) and ml_resp.get('error'):
