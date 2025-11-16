@@ -667,28 +667,28 @@ function playAudio(audioData) {
  */
 function extractTimerFromResponse(text) {
     if (!text) return null;
-    
+
     // Pattern to match time mentions like "10 minute", "5 minutes", "30 seconds"
     const patterns = [
         /(\d+)\s*(?:minute|min)s?/i,
         /(\d+)\s*(?:second|sec)s?/i,
         /(\d+)\s*(?:hour|hr)s?/i
     ];
-    
+
     let totalSeconds = 0;
-    
+
     // Check for minutes
     const minMatch = text.match(/(\d+)\s*(?:minute|min)s?/i);
     if (minMatch) {
         totalSeconds += parseInt(minMatch[1]) * 60;
     }
-    
+
     // Check for hours
     const hourMatch = text.match(/(\d+)\s*(?:hour|hr)s?/i);
     if (hourMatch) {
         totalSeconds += parseInt(hourMatch[1]) * 3600;
     }
-    
+
     // Check for seconds (only if no minutes/hours found)
     if (totalSeconds === 0) {
         const secMatch = text.match(/(\d+)\s*(?:second|sec)s?/i);
@@ -696,9 +696,9 @@ function extractTimerFromResponse(text) {
             totalSeconds = parseInt(secMatch[1]);
         }
     }
-    
+
     if (totalSeconds === 0) return null;
-    
+
     // Convert to MM:SS
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
@@ -719,7 +719,7 @@ function startTimer(timeString) {
     // Parse MM:SS or HH:MM:SS format
     const parts = timeString.split(':');
     let totalSeconds = 0;
-    
+
     if (parts.length === 3) {
         // HH:MM:SS format
         totalSeconds = parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
@@ -1123,7 +1123,7 @@ async function sendAudioToBackend(base64Audio, format) {
 
         // Handle timer if present in response
         let timerTime = result?.time;
-        
+
         // If no explicit time field, try to extract from response text
         if (!timerTime && result?.response) {
             const extracted = extractTimerFromResponse(result.response);
@@ -1132,7 +1132,7 @@ async function sendAudioToBackend(base64Audio, format) {
                 console.log('Extracted timer from response text:', timerTime);
             }
         }
-        
+
         if (timerTime) {
             console.log('Starting timer from voice input with time:', timerTime);
             startTimer(timerTime);
