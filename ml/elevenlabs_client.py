@@ -123,9 +123,9 @@ class ElevenLabsClient:
         """Change the default voice being used"""
         self.voice_id = voice_id
     
-    def speech_to_text(self, audio_base64: str, audio_format: str = "audio/webm") -> str:
+    def speech_to_text(self, audio_base64: str, audio_format: str = "audio/webm", model_id: str = "scribe_v1") -> str:
         """
-        Convert speech to text using ElevenLabs conversion API
+        Convert speech to text using ElevenLabs Audio Transcriptions API
         
         Args:
             audio_base64: Base64 encoded audio data
@@ -140,28 +140,52 @@ class ElevenLabsClient:
         # Decode base64 to bytes
         audio_bytes = base64.b64decode(audio_base64)
         
-        # ElevenLabs conversion API endpoint
-        url = f"{self.base_url}/conversion"
+        # ElevenLabs Speech-to-Text endpoint
+        url = f"{self.base_url}/speech-to-text"
         
         # Prepare multipart form data
         files = {
             'file': ('audio.webm', audio_bytes, audio_format)
         }
+        # Transcription model per ElevenLabs API
+        data = {
+            'model_id': model_id
+        }
         
         headers = {
-            "xi-api-key": self.api_key
+            "xi-api-key": self.api_key,
+            "Accept": "application/json"
         }
         
         try:
             response = requests.post(
                 url,
                 headers=headers,
+                data=data,
                 files=files,
                 timeout=60  # Transcription can take longer
             )
-            response.raise_for_status()
-            
-            result = response.json()
+            # Try to parse JSON even when an error occurs to capture message
+            result = None
+            try:
+                result = response.json()
+            except Exception:
+                result = None
+
+            if response.status_code >= 400:
+                body = result if isinstance(result, dict) else response.text
+                # Log full body for debugging
+                try:
+                    print(f"[ElevenLabs STT] HTTP {response.status_code} error body: {body}")
+                except Exception:
+                    pass
+                raise Exception(f"HTTP {response.status_code} error from ElevenLabs STT: {body}")
+
+            # Successful response
+            # Ensure result is JSON
+            if result is None:
+                response.raise_for_status()
+                result = response.json()
             # The response should contain the transcribed text
             # Adjust based on actual ElevenLabs API response format
             transcribed_text = result.get("text", "") or result.get("transcription", "")
@@ -172,7 +196,21 @@ class ElevenLabsClient:
             return transcribed_text.strip()
         
         except requests.exceptions.RequestException as e:
-            raise Exception(f"ElevenLabs transcription API error: {str(e)}")
+            # Surface error status/body when available
+            resp = getattr(e, 'response', None)
+            status = getattr(resp, 'status_code', None)
+            body = ''
+            try:
+                if resp is not None:
+                    body = resp.text
+            except Exception:
+                body = ''
+            try:
+                print(f"[ElevenLabs STT] RequestException status={status} body={body}")
+            except Exception:
+                pass
+            detail = f" | body: {body}" if body else ""
+            raise Exception(f"ElevenLabs transcription API error: {str(e)}{detail}")
     
     def save_audio(self, audio_data: bytes, text: str, output_dir: str = "audio_output") -> str:
         """
