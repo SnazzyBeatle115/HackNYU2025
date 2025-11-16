@@ -1,9 +1,38 @@
 /* Global Styles */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: sans-serif;
+    font-family: 'Press Start 2P', cursive;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+html {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+}
+
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-image: url('../images/back1.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+main {
+    height: 100%;
+    width: 100%;
+    background: transparent;
 }
 
 button {
@@ -19,7 +48,7 @@ input:focus {
 }
 
 .container {
-    background: radial-gradient(circle at center, #ffffff 0%, #f0f0f0 50%, #d0d0d0 100%);
+    min-height: 100vh;
     height: 100vh;
     width: 100%;
 
@@ -34,43 +63,56 @@ input:focus {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: space-between;
     gap: 2rem;
+    position: relative;
 }
 
 .main > h1 {
     padding: 0.5rem;
     width: 100%;
-    font-size: 2.5rem;
+    font-size: 2rem;
+    text-align: center;
+    text-shadow: 3px 3px 0px rgba(0, 0, 0, 0.8);
+    color: white;
+    letter-spacing: 2px;
 }
 
 .chat {
     width: 30%;
-    background-color: whitesmoke;
+    background-color: transparent;
     padding: 0.7rem;
 }
 
 .chat > h2 {
     margin-top: 0.4rem;
     margin-bottom: 1rem;
-    font-size: 1.9rem;
+    font-size: 1.2rem;
+    color: white;
+    text-shadow: 3px 3px 0px rgba(0, 0, 0, 0.8);
+    letter-spacing: 1px;
 }
 
 .log {
     padding: 0.5rem;
 }
 .log > p {
-    color: rgb(70, 70, 70);
+    color: white;
     margin-bottom: 0.7rem;
-    font-size: 1.2rem;
+    font-size: 0.6rem;
+    text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.8);
+    line-height: 1.6rem;
 }
 
 .timer {
     padding: 1.3rem;
     background-color: white;
-    border-radius: 0.5rem;
-    font-size: 1.4rem;
+    border-radius: 0;
+    font-size: 1.2rem;
     font-weight: bold;
-    border: 1px solid gray;
+    border: 4px solid #000;
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3);
+    text-align: center;
 }
 
 .center {
@@ -81,6 +123,7 @@ input:focus {
     padding-right: 5%;
 
     width: 100%;
+    flex: 1;
 }
 
 .character-img {
@@ -101,49 +144,75 @@ input:focus {
     left: 40%;
     width: 200px;
 
-    font-size: 1.1rem;
+    font-size: 0.7rem;
     color: black;
     font-weight: bold;
-    line-height: 1.6rem;
+    line-height: 1.4rem;
 
-    background-color: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(10px);
-    padding: 1.5rem;
-    border-radius: 0.5rem;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 1rem;
+    border-radius: 0;
+    border: 3px solid #000;
+    box-shadow: 3px 3px 0px rgba(0, 0, 0, 0.3);
     z-index: 1;
 }
 
 .input {
     background-color: white;
-    border-radius: 0.5rem;
+    border-radius: 0;
     font-size: 1.5rem;
-    border: 1px solid gray;
-    height: 3rem;
+    border: 4px solid #000;
+    height: 3.5rem;
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3);
 
     display: flex;
     align-items: center;
     justify-content: space-between;
-    width: 100%;
+    width: 80%;
+    max-width: 600px;
+    margin: 0 auto;
+    margin-bottom: 2rem;
 
     overflow: hidden;
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
 }
 
 .input-text {
     height: 100%;
-    font-size: 1.1rem;
+    font-size: 0.7rem;
     flex-grow: 1;
-    margin-left: 0.4rem;
+    margin-left: 0.8rem;
+    font-family: 'Press Start 2P', cursive;
+    outline: none;
+}
+
+.input-text::placeholder {
+    color: #999;
+    font-size: 0.6rem;
 }
 
 .submit-btn {
-    width: 3rem;
+    width: 3.5rem;
     height: 100%;
     cursor: pointer;
-    background-color: white;
-    border-left: 1px solid gray;
+    background-color: #4CAF50;
+    border-left: 4px solid #000;
+    transition: all 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .submit-btn:hover {
-    background-color: #e3e3e3;
+    background-color: #45a049;
+    transform: translate(-2px, -2px);
+    box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
+}
+.submit-btn:active {
+    transform: translate(0px, 0px);
+    box-shadow: none;
 }
 
 .submit-btn > img {
