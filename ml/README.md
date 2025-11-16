@@ -316,11 +316,19 @@ Content-Type: application/json
   ocr_model_used: string;      // Model identifier used for text extraction
   vision_model_used: string;   // Model identifier used for activity detection
   details?: string;            // Optional: Additional context about the activity
+  audio?: {                    // Optional: Warning audio (only if is_studying is false and ElevenLabs is configured)
+    data: string;              // Base64-encoded audio data
+    format: string;            // Audio format (typically "mp3")
+    data_url: string;         // Data URL format for direct use in HTML audio elements
+  };
+  warning_message?: string;    // Optional: Text of the warning message
   status: "success" | "error";  // Response status
 }
 ```
 
-**Example Response:**
+**Note:** If `is_studying` is `false` and ElevenLabs is configured, the response will include an `audio` field with a warning message: "Hey! Looks like you are doing [activity_detected], you should be focusing!"
+
+**Example Response (with warning audio):**
 ```json
 {
   "text_extracted": "Official - HackNYU Fall 25\n#announcements\n\nAshley [HackNYU Leadership] 1:17 PM\nThere's still pizza left!!! @everyone...",
@@ -330,6 +338,12 @@ Content-Type: application/json
   "ocr_model_used": "openai/gpt-4-turbo",
   "vision_model_used": "openai/gpt-4-turbo",
   "details": "The user is not actively engaged in studying or academic work. They are browsing a channel named #announcements on Discord...",
+  "audio": {
+    "data": "base64_encoded_audio_string",
+    "format": "mp3",
+    "data_url": "data:audio/mpeg;base64,..."
+  },
+  "warning_message": "Hey! Looks like you are doing The user is viewing announcements on a Discord server for an event called HackNYU Fall 25., you should be focusing!",
   "status": "success"
 }
 ```
@@ -401,11 +415,19 @@ Content-Type: application/json
   analysis: string;             // Full AI analysis text with structured format
   vision_model_used: string;   // Model identifier used for camera image analysis
   details?: string;            // Optional: Additional context about the activity
+  audio?: {                    // Optional: Warning audio (only if is_studying is false and ElevenLabs is configured)
+    data: string;              // Base64-encoded audio data
+    format: string;            // Audio format (typically "mp3")
+    data_url: string;         // Data URL format for direct use in HTML audio elements
+  };
+  warning_message?: string;    // Optional: Text of the warning message
   status: "success" | "error";  // Response status
 }
 ```
 
-**Example Response:**
+**Note:** If `is_studying` is `false` and ElevenLabs is configured, the response will include an `audio` field with a warning message: "Hey! Looks like you are doing [activity_detected], you should be focusing!"
+
+**Example Response (with warning audio):**
 ```json
 {
   "person_present": true,
@@ -414,6 +436,12 @@ Content-Type: application/json
   "analysis": "PERSON_PRESENT: yes\nACTIVITY: using phone\nIS_STUDYING: no\nDETAILS: The person is holding and looking at a mobile phone...",
   "vision_model_used": "openai/gpt-4-turbo",
   "details": "The person is holding and looking at a mobile phone, which indicates they are distracted from studying according to the given rules.",
+  "audio": {
+    "data": "base64_encoded_audio_string",
+    "format": "mp3",
+    "data_url": "data:audio/mpeg;base64,..."
+  },
+  "warning_message": "Hey! Looks like you are doing using phone, you should be focusing!",
   "status": "success"
 }
 ```

@@ -40,6 +40,11 @@ def init_assistant():
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY not found in environment variables")
     
+    # Validate API key format (basic check)
+    if not api_key.startswith("sk-or-v1-"):
+        print(f"[WARN] API key format may be incorrect. Expected format: sk-or-v1-...")
+        print(f"[WARN] Current key starts with: {api_key[:10]}...")
+    
     assistant = AIAssistant(api_key=api_key, model=model, backup_models=backup_models)
     assistant.start()
     
@@ -390,7 +395,7 @@ def detect_screen():
         "status": "success"
     }
     """
-    global assistant
+    global assistant, elevenlabs_client
     
     # Initialize assistant if not already done
     if assistant is None:
@@ -561,6 +566,43 @@ DETAILS: [additional context about the activity, application/website name, etc.]
         
         if details:
             result["details"] = details
+        
+        # Generate warning audio if user is not studying
+        if not is_studying and elevenlabs_client and activity_detected:
+            try:
+                # Create warning message
+                warning_message = f"Hey! Looks like you are doing {activity_detected}, you should be focusing!"
+                
+                # Generate audio from warning message
+                audio_result = elevenlabs_client.text_to_speech(
+                    text=warning_message,
+                    stability=0.5,
+                    similarity_boost=0.75,
+                    style=0.2,
+                    use_speaker_boost=True
+                )
+                
+                audio_data = {
+                    "data": audio_result["audio_base64"],
+                    "format": audio_result["format"],
+                    "data_url": f"data:audio/{audio_result['format']};base64,{audio_result['audio_base64']}"
+                }
+                result["audio"] = audio_data
+                result["warning_message"] = warning_message
+                
+                # Save audio file for debugging (backend only)
+                try:
+                    saved_path = elevenlabs_client.save_audio(
+                        audio_data=audio_result.get("audio_data"),
+                        text=warning_message,
+                        output_dir="audio_output"
+                    )
+                    print(f"Saved warning audio: {saved_path}")
+                except Exception as save_error:
+                    print(f"Failed to save warning audio: {str(save_error)}")
+            except Exception as e:
+                # If audio generation fails, still return text response
+                print(f"Failed to generate warning audio: {str(e)}")
         
         return jsonify(result), 200
     
@@ -737,6 +779,43 @@ DETAILS: [additional context - what device they're using, their posture, engagem
         
         if details:
             result["details"] = details
+        
+        # Generate warning audio if user is not studying
+        if not is_studying and elevenlabs_client and activity_detected:
+            try:
+                # Create warning message
+                warning_message = f"Hey! Looks like you are doing {activity_detected}, you should be focusing!"
+                
+                # Generate audio from warning message
+                audio_result = elevenlabs_client.text_to_speech(
+                    text=warning_message,
+                    stability=0.5,
+                    similarity_boost=0.75,
+                    style=0.2,
+                    use_speaker_boost=True
+                )
+                
+                audio_data = {
+                    "data": audio_result["audio_base64"],
+                    "format": audio_result["format"],
+                    "data_url": f"data:audio/{audio_result['format']};base64,{audio_result['audio_base64']}"
+                }
+                result["audio"] = audio_data
+                result["warning_message"] = warning_message
+                
+                # Save audio file for debugging (backend only)
+                try:
+                    saved_path = elevenlabs_client.save_audio(
+                        audio_data=audio_result.get("audio_data"),
+                        text=warning_message,
+                        output_dir="audio_output"
+                    )
+                    print(f"Saved warning audio: {saved_path}")
+                except Exception as save_error:
+                    print(f"Failed to save warning audio: {str(save_error)}")
+            except Exception as e:
+                # If audio generation fails, still return text response
+                print(f"Failed to generate warning audio: {str(e)}")
         
         return jsonify(result), 200
     

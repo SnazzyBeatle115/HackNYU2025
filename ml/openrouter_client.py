@@ -69,6 +69,16 @@ class OpenRouterClient:
             try:
                 error_data = response.json()
                 error_message = error_data.get("error", {}).get("message", response.text)
+                error_type = error_data.get("error", {}).get("type", "unknown")
+                
+                # Provide helpful diagnostics for common errors
+                if response.status_code == 401:
+                    diagnostic = "\n[DIAGNOSTIC] 401 Unauthorized usually means:\n"
+                    diagnostic += "  - API key is invalid or expired\n"
+                    diagnostic += "  - API key doesn't have access to the requested model\n"
+                    diagnostic += "  - Check your OpenRouter account at https://openrouter.ai/keys\n"
+                    error_message = f"{error_message}{diagnostic}"
+                
                 raise requests.exceptions.HTTPError(
                     f"{response.status_code} {response.reason}: {error_message}"
                 )
