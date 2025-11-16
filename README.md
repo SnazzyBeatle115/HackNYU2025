@@ -1,167 +1,90 @@
-# HackNYU2025 - Flask ML Web App
+# Conscience AI — HackNYU 2025
 
-A Flask-based web application with integrated machine learning capabilities. This project features a clean separation of concerns with a dedicated ML folder for all machine learning-related code.
+A tiny, relentless accountability coach that keeps you focused. Tell Conscience AI your goal, and it starts a focus session, monitoring your screen and attention in real time. The moment you drift, it nudges you back—often with a friendly (or firm) voice line.
 
-## Project Structure
+## Inspiration
 
+We're all horrible at getting things done. Even when we want to focus, it's far too easy to get sidetracked—whether it’s a phone notification, a Wikipedia rabbit hole, or a “quick” League of Legends match that turns into an hour. Traditional productivity tools rely on self-discipline; Conscience AI adds something stronger: accountability.
+
+## What it does
+
+- Starts a focus session based on your stated goal
+- Monitors high-level screen context to detect task drift (locally)
+- Estimates attention from lightweight webcam signals
+- Gives real-time voice nudges when you fall off task
+
+It’s like having a mentor sitting on your shoulder making sure you follow through on your intentions.
+
+## How we built it
+
+- On-device screen monitoring to extract high-level context without storing user data
+- Lightweight attention tracking via the webcam (no raw video leaves your machine)
+- A real-time feedback loop powered by an LLM that generates gentle (or firm) voice nudges using ElevenLabs
+- Flask backend + browser client for capture and coaching loop
+
+## Challenges we ran into
+
+- Balancing accountability with privacy (no screenshots/webcam frames sent to servers)
+- False positives in early models (it yelled at us while we were working)
+- Smooth voice interaction that’s effective without feeling annoying—or creepy
+- Calibrating for different working styles (multitaskers vs deep-focus)
+- Background noise sensitivity for voice interactions
+
+## Accomplishments we're proud of
+
+- Built a fully functional, on-device, real-time accountability loop in under 48 hours
+- Effective attention tracking with minimal hardware requirements
+- Early user testing shows reduced distraction events
+
+## What we learned
+
+- Accountability beats fancy productivity features—people work better when something is watching (respectfully)
+- Attention is messy and personal; one-size-fits-all doesn’t work
+- Small, immediate feedback breaks distraction loops
+- Privacy-by-design is essential; users trust tools that respect boundaries
+
+## What's next for Conscience AI
+
+- Adaptive coaching modes: “supportive,” “strict,” or “dead serious”
+- Calendar/notebook/task integrations to auto-start focus sessions
+- Mobile companion for phone distraction detection
+- Deeper analytics: heatmaps of distractor patterns, personalized recommendations
+- End-to-end encryption + local LLM options for even stronger privacy
+
+## Built With
+
+- Python, Flask
+- JavaScript, HTML, CSS
+- OpenRouter (LLM)
+- ElevenLabs (voice)
+- GitHub Copilot
+
+## Try it out
+
+[dopaminedetoxandmakeyourselfaccountable67.tech](https://dopaminedetoxandmakeyourselfaccountable67.tech)
+
+---
+
+## Dev quickstart (local)
+
+```bash
+# Windows PowerShell (recommended)
+pip install pipenv
+pipenv install
+pipenv run flask run
 ```
+
+### Environment variables
+
+- `ML_SERVER_URL` (default: `http://localhost:8081`) — target ML server used by the Flask app
+
+
+Project structure (simplified):
+
+```text
 HackNYU2025/
-├── app.py                  # Main Flask application entry point
-├── templates/              # HTML templates (Jinja2)
-│   ├── base.html          # Base template with navigation
-│   ├── index.html         # Home page with ML prediction form
-│   └── about.html         # About page
-├── static/                 # Static files (CSS, JS, images)
-│   ├── css/
-│   │   └── style.css      # Main stylesheet
-│   ├── js/
-│   │   └── main.js        # JavaScript utilities
-│   └── images/            # Image assets
-├── ml/                     # Machine Learning module
-│   ├── __init__.py        # Package initialization
-│   ├── model.py           # ML model implementation
-│   └── utils.py           # ML utilities (preprocessing, feature engineering)
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
+├── app.py
+├── templates/
+├── static/
+└── ml/
 ```
-
-## Features
-
-- **Flask Framework**: Lightweight and powerful Python web framework
-- **ML Integration**: Separate ML folder with modular machine learning implementation
-- **RESTful API**: Clean API endpoints for making predictions
-- **Responsive Design**: Modern, mobile-friendly user interface
-- **Modular Structure**: Easy to extend and maintain
-
-## Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/SnazzyBeatle115/HackNYU2025.git
-   cd HackNYU2025
-   ```
-
-2. **Create a virtual environment** (recommended)
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment variables** (optional)
-   ```bash
-   cp .env.example .env
-   # Edit .env and set your SECRET_KEY and other configuration
-   ```
-
-## Usage
-
-1. **Run the Flask application**
-   ```bash
-   python app.py
-   ```
-   
-   By default, the app runs in debug mode. To disable debug mode:
-   ```bash
-   export FLASK_DEBUG=False
-   python app.py
-   ```
-
-2. **Access the application**
-   - Open your browser and navigate to `http://localhost:5000`
-   - Try the ML prediction feature on the home page
-   - Explore the about page for more information
-
-## API Endpoints
-
-- `GET /` - Home page with ML prediction form
-- `GET /about` - About page with project information
-- `POST /predict` - API endpoint for making predictions
-  - Request body (JSON): `{"value": <number>}`
-  - Response: `{"success": true, "prediction": <result>}`
-
-## ML Module
-
-The `ml/` folder contains all machine learning-related code:
-
-- **model.py**: Contains the `MLModel` class with methods for training, prediction, and model persistence
-- **utils.py**: Utility functions for data preprocessing, feature extraction, and dataset splitting
-
-### Using the ML Module
-
-```python
-from ml.model import predict, get_model
-
-# Make a prediction
-result = predict({"value": 42})
-
-# Access the model directly
-model = get_model()
-model.train(X_train, y_train)
-```
-
-## Customization
-
-### Adding Your Own ML Model
-
-1. Replace the placeholder logic in `ml/model.py` with your actual model
-2. Install required ML libraries (uncomment in `requirements.txt`)
-3. Update the prediction logic to use your trained model
-
-Example with scikit-learn:
-```python
-from sklearn.ensemble import RandomForestClassifier
-
-class MLModel:
-    def __init__(self):
-        self.model = RandomForestClassifier()
-    
-    def train(self, X_train, y_train):
-        self.model.fit(X_train, y_train)
-    
-    def predict_single(self, data):
-        features = extract_features(data)
-        return self.model.predict([features])[0]
-```
-
-### Adding New Routes
-
-Add new routes in `app.py`:
-```python
-@app.route('/new-route')
-def new_route():
-    return render_template('new_template.html')
-```
-
-## Development
-
-- **Debug mode**: The app runs in debug mode by default for development. Set `FLASK_DEBUG=False` in production.
-- **Secret key**: Set a secure `SECRET_KEY` environment variable in production.
-- **Port**: Default port is 5000, can be changed in `app.py`.
-
-## Security Notes
-
-⚠️ **Important for Production:**
-1. Set `FLASK_DEBUG=False` to disable debug mode
-2. Use a strong, random `SECRET_KEY` (not the default)
-3. Use a production WSGI server like gunicorn instead of the built-in Flask server
-4. Never commit `.env` files with secrets to version control
-
-## Technologies Used
-
-- **Flask** - Web framework
-- **NumPy** - Numerical computing
-- **HTML/CSS/JavaScript** - Frontend
-- **Jinja2** - Template engine (comes with Flask)
-
-## Contributing
-
-This project was built for HackNYU2025. Feel free to fork and customize for your own needs!
-
-## License
-
-MIT License - feel free to use this project as a starting point for your own applications.
