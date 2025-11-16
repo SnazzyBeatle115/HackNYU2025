@@ -1193,7 +1193,7 @@ function blobToBase64WithoutPrefix(blob) {
 async function sendAudioToBackend(base64Audio, format) {
     try {
         // Send base64 audio as JSON to /api/voice endpoint (Flask server forwards to ML server)
-        const response = await fetch('http://localhost:5000/api/voice', {
+        const response = await fetch('/api/voice', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
