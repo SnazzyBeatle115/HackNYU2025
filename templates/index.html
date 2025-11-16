@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="container">
-    
+
     <div class="main">
         <h1> Conscience AI </h1>
         
@@ -12,9 +12,8 @@
             🌳 Go to Farm
         </a>
 
-        <div class="coin-display">
-            <span class="coin-label">Coins:</span>
-            <span class="coin-value" id="mainCoins">1000</span>
+        <div class="capture-controls">
+            <button class="screen-btn">Start capture.</button>
         </div>
 
         <div class="timer">
@@ -56,8 +55,8 @@
 {% block scripts %}
 <script>
     // Set capture intervals from backend environment variables
-    // Store in window object so main.js can access them
-    window.TIME_INTERVAL_SCREEN_CAPTURE = {{ screen_capture_interval }};
-    window.TIME_INTERVAL_CAMERA_CAPTURE = {{ camera_capture_interval }};
+    // Store in globalThis so main.js can access them
+    globalThis.TIME_INTERVAL_SCREEN_CAPTURE = {{ screen_capture_interval }};
+    globalThis.TIME_INTERVAL_CAMERA_CAPTURE = {{ camera_capture_interval }};
 </script>
 {% endblock %}

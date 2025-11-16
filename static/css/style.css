@@ -57,14 +57,14 @@ input:focus {
 
 .main {
     padding: 0% 10%;
-    
+
     width: 70%;
     gap: 2rem;
     position: relative;
     z-index: 2;
 }
 
-.main > h1 {
+.main>h1 {
     margin-top: 4rem;
     margin-bottom: 3rem;
 
@@ -144,7 +144,7 @@ input:focus {
     z-index: 1;
 }
 
-.chat > h2 {
+.chat>h2 {
     margin-top: 0.4rem;
     margin-bottom: 1rem;
     font-size: 1.2rem;
@@ -156,7 +156,8 @@ input:focus {
 .log {
     padding: 0.5rem;
 }
-.log > p {
+
+.log>p {
     color: white;
     margin-bottom: 0.7rem;
     font-size: 0.6rem;
@@ -175,6 +176,8 @@ input:focus {
     border: 4px solid #000;
     box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3);
     text-align: center;
+    position: relative;
+    z-index: 20;
 }
 
 .center {
@@ -187,9 +190,9 @@ input:focus {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
 
-    padding: 0 10%;
+    padding-right: 5%;
 }
 
 .character-img {
@@ -199,65 +202,14 @@ input:focus {
     height: auto;
 }
 
-.animated-character {
-    position: relative;
-    width: 200px;
-    height: 200px;
-    border-radius: 100%;
-    overflow: hidden;
-    background: transparent;
-    background-color: transparent;
-}
-
-.char-frame {
-    position: absolute;
-    top: 0;
-    left: 0;
+.character-img > img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     border-radius: 100%;
     border: 3px solid black;
-    opacity: 0;
-    animation: characterAnimation 4s infinite;
-    transition: opacity 0.4s ease-in-out;
-    image-rendering: auto;
-    -webkit-background-clip: padding-box;
-    background-clip: padding-box;
-    background: transparent;
 }
-
-.char-frame.frame-1 {
-    animation-delay: 0s;
-}
-
-.char-frame.frame-2 {
-    animation-delay: 1.33s;
-}
-
-.char-frame.frame-3 {
-    animation-delay: 2.66s;
-}
-
-@keyframes characterAnimation {
-    0% {
-        opacity: 0;
-    }
-    2% {
-        opacity: 1;
-    }
-    32% {
-        opacity: 1;
-    }
-    34% {
-        opacity: 0;
-    }
-    100% {
-        opacity: 0;
-    }
-}
-
-.character-img:hover .char-frame {
+.character-img > img:hover {
     border: 3px solid white;
     cursor: pointer;
     transform: scale(1.05);
@@ -298,7 +250,7 @@ input:focus {
 
     overflow: hidden;
     position: relative;
-    margin-bottom: 2rem;
+    margin-top: 4rem;
 }
 
 .input-text {
@@ -327,17 +279,19 @@ input:focus {
     align-items: center;
     justify-content: center;
 }
+
 .submit-btn:hover {
     background-color: #45a049;
     transform: scale(1.05);
     box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
 }
+
 .submit-btn:active {
     transform: scale(1);
     box-shadow: none;
 }
 
-.submit-btn > img {
+.submit-btn>img {
     width: 100%;
     height: 100%;
 }
@@ -348,7 +302,7 @@ input:focus {
         width: 140px;
         font-size: 1rem;
     }
-    
+
 }
 
 @media screen and (min-height: 800px) {
